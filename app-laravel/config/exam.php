@@ -13,4 +13,13 @@ return [
     'default_section_seconds' => 30 * 60,
 
     'default_break_seconds' => 5 * 60,
+
+    /*
+    | Penetapan cast setelah ujian seleksi: N teratas global di-keep,
+    | lalu M besar per gedung dari peserta sisanya.
+    */
+    'cast' => [
+        'global_keep' => 4,
+        'per_building' => 4,
+    ],
 ];

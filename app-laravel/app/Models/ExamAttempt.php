@@ -25,6 +25,8 @@ class ExamAttempt extends Model
         'correct_count',
         'wrong_count',
         'duration_seconds',
+        'cast_type',
+        'specialist_pillar',
     ];
 
     protected function casts(): array
@@ -36,6 +38,7 @@ class ExamAttempt extends Model
             'break_ends_at' => 'datetime',
             'submitted_at' => 'datetime',
             'last_seen_at' => 'datetime',
+            'specialist_pillar' => \App\Enums\Pillar::class,
         ];
     }
 

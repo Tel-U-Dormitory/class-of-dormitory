@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Arena\ArenaController;
 use App\Http\Controllers\Exam\AnswerController;
 use App\Http\Controllers\Exam\LobbyController;
 use App\Http\Controllers\Exam\MediaController;
@@ -48,6 +49,12 @@ Route::middleware(['auth:participant', 'participant.single-session'])->group(fun
         Route::get('media/soal/{question}', [MediaController::class, 'question'])->name('media.question');
         Route::get('media/opsi/{option}', [MediaController::class, 'option'])->name('media.option');
     });
+});
+
+// Layar game panggung: hanya bisa dibuka panitia yang login.
+Route::middleware('auth')->prefix('arena')->name('arena.')->group(function () {
+    Route::get('{challenge}', [ArenaController::class, 'show'])->name('show');
+    Route::post('{challenge}/jawab', [ArenaController::class, 'submit'])->middleware('throttle:120,1')->name('submit');
 });
 
 Route::prefix('admin')->group(function () {

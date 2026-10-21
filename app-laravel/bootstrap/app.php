@@ -27,7 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
 
         // Area peserta dan area admin punya halaman login masing-masing.
-        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('admin', 'admin/*')
+        $middleware->redirectGuestsTo(fn (Request $request) => $request->is('admin', 'admin/*', 'arena/*')
             ? route('login')
             : route('participant.login'));
 

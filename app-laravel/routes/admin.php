@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Admin\BracketController;
+use App\Http\Controllers\Admin\CastController;
+use App\Http\Controllers\Admin\ChallengeController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExamController;
 use App\Http\Controllers\Admin\MediaController;
@@ -23,6 +26,9 @@ Route::middleware('auth')->group(function () {
         Route::get('ujian/{exam}/monitor', [MonitorController::class, 'show'])->name('exams.monitor');
         Route::get('ujian/{exam}/hasil', [ResultController::class, 'index'])->name('exams.results');
         Route::get('ujian/{exam}/hasil/export', [ResultController::class, 'export'])->name('exams.results.export');
+        Route::get('ujian/{exam}/cast-reveal', [CastController::class, 'reveal'])->name('exams.cast-reveal');
+
+        Route::get('bracket', BracketController::class)->name('bracket');
 
         // Khusus admin: perubahan data.
         Route::middleware('admin')->group(function () {
@@ -51,6 +57,22 @@ Route::middleware('auth')->group(function () {
             Route::delete('soal/{question}', [QuestionController::class, 'destroy'])->name('questions.destroy');
 
             Route::get('media', [MediaController::class, 'show'])->name('media');
+
+            Route::post('ujian/{exam}/tetapkan-cast', [CastController::class, 'apply'])->name('exams.cast.apply');
+            Route::patch('ujian/{exam}/attempt/{attempt}/spesialis', [ResultController::class, 'specialist'])->name('attempts.specialist');
+
+            Route::get('challenge', [ChallengeController::class, 'index'])->name('challenges.index');
+            Route::post('challenge', [ChallengeController::class, 'store'])->name('challenges.store');
+            Route::get('challenge/{challenge}', [ChallengeController::class, 'show'])->name('challenges.show');
+            Route::put('challenge/{challenge}', [ChallengeController::class, 'update'])->name('challenges.update');
+            Route::delete('challenge/{challenge}', [ChallengeController::class, 'destroy'])->name('challenges.destroy');
+            Route::patch('challenge/{challenge}/status', [ChallengeController::class, 'updateStatus'])->name('challenges.status');
+            Route::post('challenge/{challenge}/reset', [ChallengeController::class, 'reset'])->name('challenges.reset');
+            Route::put('challenge/{challenge}/roster', [ChallengeController::class, 'updateRoster'])->name('challenges.roster');
+            Route::post('challenge/{challenge}/bracket', [ChallengeController::class, 'processBracket'])->name('challenges.bracket');
+            Route::post('challenge/{challenge}/kelompok', [ChallengeController::class, 'storeTeam'])->name('teams.store');
+            Route::put('kelompok/{team}', [ChallengeController::class, 'updateTeam'])->name('teams.update');
+            Route::delete('kelompok/{team}', [ChallengeController::class, 'destroyTeam'])->name('teams.destroy');
         });
     });
 });

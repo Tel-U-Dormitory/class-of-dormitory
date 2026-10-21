@@ -7,6 +7,8 @@ const tones: Record<string, string> = {
     submitted: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
     cast_selected: 'bg-amber-500/15 text-amber-700 dark:text-amber-300',
     eliminated: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400',
+    advanced: 'bg-violet-500/15 text-violet-700 dark:text-violet-300',
+    deathmatch: 'bg-red-500/15 text-red-700 dark:text-red-300',
     disqualified: 'bg-destructive/15 text-destructive',
     // attempt
     in_progress: 'bg-sky-500/15 text-sky-700 dark:text-sky-300',

@@ -1,4 +1,5 @@
 import AppLogoIcon from '@/components/app-logo-icon';
+import { Embers } from '@/components/embers';
 import { FlashToaster } from '@/components/flash-toaster';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -13,7 +14,8 @@ export default function PublicLayout({ children, className, wide = false }: { ch
     const { auth } = usePage<SharedData>().props;
 
     return (
-        <div className="dark bg-background text-foreground flex min-h-svh flex-col">
+        <div className="dark bg-background text-foreground relative isolate flex min-h-svh flex-col">
+            <Embers className="-z-10 opacity-50" count={45} />
             <header className="border-border/60 bg-background/80 sticky top-0 z-40 border-b backdrop-blur">
                 <div className={cn('mx-auto flex h-16 items-center justify-between gap-4 px-4 sm:px-6', wide ? 'max-w-7xl' : 'max-w-6xl')}>
                     <Link href={route('home')} className="flex items-center gap-2.5">

@@ -31,5 +31,9 @@ class DatabaseSeeder extends Seeder
         }
 
         $this->call(SampleExamSeeder::class);
+
+        if (app()->environment('local')) {
+            $this->call(DemoResultsSeeder::class);
+        }
     }
 }

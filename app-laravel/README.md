@@ -32,12 +32,23 @@ Akun panitia untuk produksi: `php artisan cod:create-admin email@domain "Nama"` 
 
 Inti logika ada di `app/Services/Exam/ExamEngine.php`, props yang boleh dilihat peserta di `ExamSessionPresenter.php`.
 
+## Setelah seleksi: cast, challenge, bracket
+
+- **Penetapan cast** (halaman Hasil → *Tetapkan cast*): Top 4 global di-keep, lalu 4 besar tiap gedung dari sisanya (`config/exam.php` → `cast`). Peserta didiskualifikasi tidak diperingkat. Penanda *spesialis* rahasia per pilar juga diatur di sini.
+- **Cast reveal** (`/admin/ujian/{id}/cast-reveal`): panggung layar penuh dengan urutan dan suara seperti versi lama. Spasi = mulai, ← → = ganti gedung, R = ulang.
+- **Challenge** (`/admin/challenge`): game per chapter, tipe *Numerical Odyssey*, keypad angka, sandi teks, atau pilihan ganda; mode individu atau kelompok; deathmatch. Waktu tempuh dihitung server sejak game dibuka. Papan peringkat diperbarui otomatis.
+- **Kiosk** (`/arena/{kode}`): layar game di panggung, **hanya bisa dibuka panitia yang login**. Peserta memilih namanya lalu menjawab; penilaian di server. Numerical Odyssey boleh dicoba ulang sampai benar; game sekali-jawab hanya menampilkan "terkirim".
+- **Roster**: jika tidak ada undangan khusus, roster berisi peserta berstatus Cast/Lolos/Deathmatch (game deathmatch: hanya Deathmatch).
+- **Bracket**: dari halaman challenge, N tercepat yang benar → *Lolos babak*, sisa roster → *Deathmatch* atau *Tereliminasi*. Ubah manual di `/admin/bracket`.
+
+Data demo lokal (`DemoResultsSeeder`) mensimulasikan 25 peserta mengerjakan ujian lewat engine asli, menetapkan cast, dan membuat dua contoh challenge.
+
 ## Peran panitia
 
 | Peran | Akses |
 |---|---|
 | Admin | Semua: ujian, bank soal, status peserta, reset token, hentikan/tambah waktu peserta |
-| Operator | Dashboard, daftar & detail peserta, monitor live, hasil & ekspor CSV |
+| Operator | Dashboard, daftar & detail peserta, monitor live, hasil & ekspor CSV, cast reveal, bracket (lihat), layar kiosk |
 
 ## Test
 
