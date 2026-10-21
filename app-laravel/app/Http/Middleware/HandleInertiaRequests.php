@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Support\Settings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Middleware;
@@ -41,6 +42,7 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'registrationOpen' => fn () => Settings::registrationOpen(),
             'auth' => [
                 'user' => $request->user()?->only(['id', 'name', 'email', 'role']),
                 'participant' => $participant ? [

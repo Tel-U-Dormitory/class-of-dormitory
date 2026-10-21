@@ -6,19 +6,32 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { formatDateTime } from '@/lib/format';
-import { Head, Link } from '@inertiajs/react';
+import { Input } from '@/components/ui/input';
+import { type SharedData } from '@/types';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { Activity, CheckCircle2, MonitorPlay, Trophy, Users, Eye } from 'lucide-react';
 
 interface Props {
     exam: { id: number; title: string; status: string; status_label: string; scheduled_at: string | null; question_count: number } | null;
     stats: { participants: number; in_progress: number; submitted: number; tab_switches: number };
+    registration: { open: boolean; closed_message: string };
     statusBreakdown: { label: string; value: string; total: number }[];
     buildings: { name: string; total: number }[];
     recentParticipants: { id: number; full_name: string; nim: string; building: string; created_at: string }[];
 }
 
-export default function Dashboard({ exam, stats, statusBreakdown, buildings, recentParticipants }: Props) {
+export default function Dashboard({ exam, stats, registration, statusBreakdown, buildings, recentParticipants }: Props) {
     const maxBuilding = Math.max(1, ...buildings.map((b) => b.total));
+    const { auth } = usePage<SharedData>().props;
+    const [message, setMessage] = useState(registration.closed_message);
+
+    const toggleRegistration = () => {
+        const open = !registration.open;
+        if (confirm(open ? 'Buka pendaftaran peserta?' : 'Tutup pendaftaran? Calon peserta tidak bisa mendaftar lagi.')) {
+            router.put(route('admin.registration.update'), { open, closed_message: message }, { preserveScroll: true });
+        }
+    };
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Dashboard', href: '/admin' }]}>
@@ -60,6 +73,31 @@ export default function Dashboard({ exam, stats, statusBreakdown, buildings, rec
                     <StatCard label="Selesai ujian" value={stats.submitted} icon={CheckCircle2} />
                     <StatCard label="Total pindah tab" value={stats.tab_switches} icon={Eye} hint="Akumulasi seluruh peserta" />
                 </div>
+
+                {auth.user?.role === 'admin' && (
+                    <Card className={registration.open ? '' : 'border-amber-500/40'}>
+                        <CardContent className="flex flex-col gap-4 lg:flex-row lg:items-center">
+                            <div className="flex items-center gap-3">
+                                <span className={`size-2.5 rounded-full ${registration.open ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                                <div>
+                                    <p className="font-medium">Pendaftaran {registration.open ? 'dibuka' : 'ditutup'}</p>
+                                    <p className="text-muted-foreground text-sm">
+                                        {registration.open ? 'Calon peserta bisa mendaftar dari situs.' : 'Tombol daftar disembunyikan dan formulir menolak pendaftaran baru.'}
+                                    </p>
+                                </div>
+                            </div>
+                            <Input
+                                aria-label="Pesan saat pendaftaran ditutup"
+                                value={message}
+                                onChange={(e) => setMessage(e.target.value)}
+                                className="lg:ml-auto lg:max-w-md"
+                            />
+                            <Button variant={registration.open ? 'outline' : 'default'} onClick={toggleRegistration} className="shrink-0">
+                                {registration.open ? 'Tutup pendaftaran' : 'Buka pendaftaran'}
+                            </Button>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
                     <Card>

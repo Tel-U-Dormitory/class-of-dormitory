@@ -10,7 +10,7 @@ import { pillarMeta } from '@/lib/pillars';
 import { cn } from '@/lib/utils';
 import { type Option, type Pillar } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
-import { Eye, Film, Image, Pencil, Plus, Text, Trash2, Zap } from 'lucide-react';
+import { Eye, Film, Image, Lock, Pencil, Plus, Text, Trash2, Zap } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props {
@@ -18,11 +18,12 @@ interface Props {
     section: { id: number; pillar: Pillar; label: string; minutes: number };
     groups: BankGroup[];
     stimulusTypes: Option[];
+    locked: boolean;
 }
 
 const stimulusIcon = { none: null, text: Text, image: Image, video: Film, flash: Zap };
 
-export default function SectionShow({ exam, section, groups, stimulusTypes }: Props) {
+export default function SectionShow({ exam, section, groups, stimulusTypes, locked }: Props) {
     const [groupDialog, setGroupDialog] = useState<{ open: boolean; group: BankGroup | null }>({ open: false, group: null });
     const [questionDialog, setQuestionDialog] = useState<{ open: boolean; groupId: number; question: BankQuestion | null }>({ open: false, groupId: 0, question: null });
     const meta = pillarMeta[section.pillar];
@@ -42,11 +43,22 @@ export default function SectionShow({ exam, section, groups, stimulusTypes }: Pr
                     title={`Pilar ${section.label}`}
                     description={`${total} soal aktif · ${groups.length} grup · ${section.minutes} menit`}
                     actions={
-                        <Button onClick={() => setGroupDialog({ open: true, group: null })}>
+                        <Button disabled={locked} onClick={() => setGroupDialog({ open: true, group: null })}>
                             <Plus /> Grup soal
                         </Button>
                     }
                 />
+
+                {locked && (
+                    <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+                        <Lock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <p>
+                            Bank soal terkunci karena ujian sedang dibuka atau masih ada peserta yang mengerjakan. Perubahan kunci jawaban atau poin di tengah
+                            ujian akan membuat penilaian tidak adil. Setelah semua selesai, perbaiki soal lalu gunakan <strong>Hitung ulang nilai</strong> di
+                            halaman ujian.
+                        </p>
+                    </div>
+                )}
 
                 <nav className="flex flex-wrap gap-2" aria-label="Pilar lain">
                     {exam.sections.map((s) => (
@@ -95,12 +107,13 @@ export default function SectionShow({ exam, section, groups, stimulusTypes }: Pr
                                             </a>
                                         </Button>
                                     )}
-                                    <Button size="icon" variant="ghost" aria-label="Ubah grup" onClick={() => setGroupDialog({ open: true, group })}>
+                                    <Button size="icon" variant="ghost" aria-label="Ubah grup" disabled={locked} onClick={() => setGroupDialog({ open: true, group })}>
                                         <Pencil />
                                     </Button>
                                     <Button
                                         size="icon"
                                         variant="ghost"
+                                        disabled={locked}
                                         aria-label="Hapus grup"
                                         onClick={() => confirm(`Hapus grup "${group.title}" beserta seluruh soalnya?`) && router.delete(route('admin.groups.destroy', group.id), { preserveScroll: true })}
                                     >
@@ -137,12 +150,13 @@ export default function SectionShow({ exam, section, groups, stimulusTypes }: Pr
                                             </p>
                                         </div>
                                         <div className="flex shrink-0 gap-1">
-                                            <Button size="icon" variant="ghost" aria-label="Ubah soal" onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: q })}>
+                                            <Button size="icon" variant="ghost" aria-label="Ubah soal" disabled={locked} onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: q })}>
                                                 <Pencil />
                                             </Button>
                                             <Button
                                                 size="icon"
                                                 variant="ghost"
+                                                disabled={locked}
                                                 aria-label="Hapus soal"
                                                 onClick={() => confirm('Hapus soal ini?') && router.delete(route('admin.questions.destroy', q.id), { preserveScroll: true })}
                                             >
@@ -152,7 +166,7 @@ export default function SectionShow({ exam, section, groups, stimulusTypes }: Pr
                                     </div>
                                 ))}
                                 <div className="px-5 py-3">
-                                    <Button size="sm" variant="ghost" onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: null })}>
+                                    <Button size="sm" variant="ghost" disabled={locked} onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: null })}>
                                         <Plus /> Tambah soal
                                     </Button>
                                 </div>

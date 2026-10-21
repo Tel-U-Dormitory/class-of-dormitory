@@ -20,7 +20,7 @@ const steps = [
 ];
 
 export default function Welcome({ exam, pillars }: Props) {
-    const { auth } = usePage<SharedData>().props;
+    const { auth, registrationOpen } = usePage<SharedData>().props;
 
     return (
         <PublicLayout>
@@ -55,12 +55,14 @@ export default function Welcome({ exam, pillars }: Props) {
                             </Button>
                         ) : (
                             <>
-                                <Button asChild size="lg">
-                                    <Link href={route('participant.register')}>
-                                        Daftar sekarang <ArrowRight />
-                                    </Link>
-                                </Button>
-                                <Button asChild size="lg" variant="outline">
+                                {registrationOpen && (
+                                    <Button asChild size="lg">
+                                        <Link href={route('participant.register')}>
+                                            Daftar sekarang <ArrowRight />
+                                        </Link>
+                                    </Button>
+                                )}
+                                <Button asChild size="lg" variant={registrationOpen ? 'outline' : 'default'}>
                                     <Link href={route('participant.login')}>Saya sudah punya token</Link>
                                 </Button>
                             </>

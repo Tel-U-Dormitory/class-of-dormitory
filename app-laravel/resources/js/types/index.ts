@@ -48,6 +48,7 @@ export interface SharedData {
     name: string;
     auth: Auth;
     flash: { success: string | null; error: string | null };
+    registrationOpen: boolean;
     [key: string]: unknown;
 }
 

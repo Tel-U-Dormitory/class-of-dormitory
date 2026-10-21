@@ -17,7 +17,7 @@ Route::get('/', HomeController::class)->name('home');
 // Peserta: pendaftaran & login (token).
 Route::middleware('guest:participant')->group(function () {
     Route::get('daftar', [RegistrationController::class, 'create'])->name('participant.register');
-    Route::post('daftar', [RegistrationController::class, 'store'])->middleware('throttle:10,1');
+    Route::post('daftar', [RegistrationController::class, 'store'])->middleware('throttle:registration');
     Route::get('masuk', [AuthController::class, 'create'])->name('participant.login');
     Route::post('masuk', [AuthController::class, 'store']);
 });
@@ -40,9 +40,9 @@ Route::middleware(['auth:participant', 'participant.single-session'])->group(fun
         Route::post('observasi/{group}/mulai', [ObservationController::class, 'start'])->name('observation.start');
         Route::post('observasi/{group}/selesai', [ObservationController::class, 'finish'])->name('observation.finish');
 
-        Route::post('jawaban/{question}', [AnswerController::class, 'store'])->middleware('throttle:120,1')->name('answer');
-        Route::post('event', [AnswerController::class, 'event'])->middleware('throttle:60,1')->name('event');
-        Route::post('heartbeat', [AnswerController::class, 'heartbeat'])->middleware('throttle:30,1')->name('heartbeat');
+        Route::post('jawaban/{question}', [AnswerController::class, 'store'])->middleware('throttle:exam-answer')->name('answer');
+        Route::post('event', [AnswerController::class, 'event'])->middleware('throttle:exam-event')->name('event');
+        Route::post('heartbeat', [AnswerController::class, 'heartbeat'])->middleware('throttle:exam-heartbeat')->name('heartbeat');
 
         Route::get('media/stimulus/{group}', [MediaController::class, 'stimulus'])->name('media.stimulus');
         Route::get('media/slide/{group}/{index}', [MediaController::class, 'slide'])->whereNumber('index')->name('media.slide');

@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\AttemptStatus;
 use App\Enums\ExamStatus;
 use App\Enums\Pillar;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
+use App\Services\Exam\ScoringService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -75,6 +77,8 @@ class ExamController extends Controller
                 'announcement' => $exam->announcement,
                 'results_published' => $exam->results_published_at !== null,
                 'has_attempts' => $exam->attempts()->exists(),
+                'submitted_count' => $exam->attempts()->where('status', AttemptStatus::Submitted)->count(),
+                'question_bank_locked' => $exam->questionBankLocked(),
                 'sections' => $exam->sections->map(fn ($s) => [
                     'id' => $s->id,
                     'pillar' => $s->pillar->value,
@@ -135,6 +139,27 @@ class ExamController extends Controller
         $exam->update(['status' => $status]);
 
         return back()->with('success', "Status ujian diubah menjadi {$status->label()}.");
+    }
+
+    /**
+     * Menilai ulang semua peserta yang sudah selesai, mis. setelah kunci jawaban dikoreksi.
+     */
+    public function rescore(Exam $exam, ScoringService $scoring): RedirectResponse
+    {
+        if ($exam->questionBankLocked()) {
+            return back()->with('error', 'Tutup ujian dan tunggu semua peserta selesai sebelum menilai ulang.');
+        }
+
+        $count = 0;
+
+        $exam->attempts()->where('status', AttemptStatus::Submitted)->lazyById()->each(function ($attempt) use ($scoring, &$count) {
+            $scoring->score($attempt);
+            $count++;
+        });
+
+        $castNote = $exam->attempts()->whereNotNull('cast_type')->exists() ? ' Tetapkan ulang cast di halaman hasil bila peringkat berubah.' : '';
+
+        return back()->with('success', "{$count} peserta dinilai ulang.{$castNote}");
     }
 
     public function togglePublish(Exam $exam): RedirectResponse

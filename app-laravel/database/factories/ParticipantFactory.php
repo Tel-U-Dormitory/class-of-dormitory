@@ -4,11 +4,12 @@ namespace Database\Factories;
 
 use App\Enums\ParticipantStatus;
 use App\Models\Building;
+use App\Models\Participant;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * @extends Factory<\App\Models\Participant>
+ * @extends Factory<Participant>
  */
 class ParticipantFactory extends Factory
 {

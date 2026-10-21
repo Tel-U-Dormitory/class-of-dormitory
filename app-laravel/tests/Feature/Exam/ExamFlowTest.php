@@ -12,6 +12,7 @@ use App\Models\Participant;
 use App\Models\Question;
 use App\Models\QuestionGroup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
@@ -249,8 +250,8 @@ class ExamFlowTest extends TestCase
     {
         $group = $this->memoryGroup();
         $group->update(['stimulus_type' => 'image', 'stimulus_media_path' => 'exam-media/test.png', 'stimulus_text' => null]);
-        \Illuminate\Support\Facades\Storage::fake('local');
-        \Illuminate\Support\Facades\Storage::disk('local')->put('exam-media/test.png', 'png');
+        Storage::fake('local');
+        Storage::disk('local')->put('exam-media/test.png', 'png');
 
         $this->actingAsParticipant()->post(route('exam.start'));
         $this->get(route('exam.media.stimulus', $group))->assertForbidden();

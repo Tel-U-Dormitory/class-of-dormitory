@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ParticipantStatus;
+use Database\Factories\ParticipantFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -12,7 +13,7 @@ use Illuminate\Support\Str;
 
 class Participant extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\ParticipantFactory> */
+    /** @use HasFactory<ParticipantFactory> */
     use HasFactory;
 
     protected $fillable = [

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Controllers\Admin\Concerns\GuardsQuestionBank;
 use App\Http\Controllers\Controller;
 use App\Models\Question;
 use App\Models\QuestionGroup;
@@ -13,8 +14,11 @@ use Illuminate\Validation\ValidationException;
 
 class QuestionController extends Controller
 {
+    use GuardsQuestionBank;
+
     public function store(Request $request, QuestionGroup $group): RedirectResponse
     {
+        $this->ensureQuestionBankEditable($group->section->exam);
         $this->save($request, new Question(['question_group_id' => $group->id]));
 
         return back()->with('success', 'Soal ditambahkan.');
@@ -22,6 +26,7 @@ class QuestionController extends Controller
 
     public function update(Request $request, Question $question): RedirectResponse
     {
+        $this->ensureQuestionBankEditable($question->group->section->exam);
         $this->save($request, $question);
 
         return back()->with('success', 'Soal disimpan.');
@@ -29,6 +34,7 @@ class QuestionController extends Controller
 
     public function destroy(Question $question): RedirectResponse
     {
+        $this->ensureQuestionBankEditable($question->group->section->exam);
         if ($question->answers()->exists()) {
             $question->update(['is_active' => false]);
 

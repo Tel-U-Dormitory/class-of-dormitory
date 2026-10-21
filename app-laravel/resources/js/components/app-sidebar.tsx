@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ClipboardList, ExternalLink, GitFork, Gamepad2, LayoutGrid, Users } from 'lucide-react';
+import { ClipboardList, ExternalLink, GitFork, Gamepad2, LayoutGrid, ShieldCheck, Users } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const mainNavItems: NavItem[] = [
@@ -13,6 +13,7 @@ const mainNavItems: NavItem[] = [
     { title: 'Peserta', url: '/admin/peserta', icon: Users },
     { title: 'Challenge & Game', url: '/admin/challenge', icon: Gamepad2, adminOnly: true },
     { title: 'Bracket', url: '/admin/bracket', icon: GitFork },
+    { title: 'Akun panitia', url: '/admin/panitia', icon: ShieldCheck, adminOnly: true },
 ];
 
 const footerNavItems: NavItem[] = [{ title: 'Buka situs peserta', url: '/', icon: ExternalLink }];

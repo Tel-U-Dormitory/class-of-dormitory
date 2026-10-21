@@ -11,7 +11,7 @@ import { pillarMeta } from '@/lib/pillars';
 import { cn } from '@/lib/utils';
 import { type Pillar } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { ArrowRight, Eye, EyeOff, LoaderCircle, Lock, MonitorPlay, Play, Trash2, Trophy } from 'lucide-react';
+import { ArrowRight, Calculator, Eye, EyeOff, LoaderCircle, Lock, MonitorPlay, Play, Trash2, Trophy } from 'lucide-react';
 
 interface Section {
     id: number;
@@ -34,6 +34,8 @@ interface Props {
         announcement: string | null;
         results_published: boolean;
         has_attempts: boolean;
+        submitted_count: number;
+        question_bank_locked: boolean;
         sections: Section[];
     };
 }
@@ -105,9 +107,27 @@ export default function ExamEdit({ exam }: Props) {
                 />
 
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="text-base">Bank soal per pilar</CardTitle>
-                        <CardDescription>Urutan pilar tetap: Memory → Spatial → Numeric → Logic.</CardDescription>
+                    <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <CardTitle className="text-base">Bank soal per pilar</CardTitle>
+                            <CardDescription>
+                                Urutan pilar tetap: Memory → Spatial → Numeric → Logic.
+                                {exam.question_bank_locked && ' Bank soal terkunci selama ujian berjalan.'}
+                            </CardDescription>
+                        </div>
+                        {exam.submitted_count > 0 && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={exam.question_bank_locked}
+                                onClick={() =>
+                                    confirm(`Nilai ulang ${exam.submitted_count} peserta berdasarkan kunci jawaban saat ini?`) &&
+                                    router.post(route('admin.exams.rescore', exam.id), {}, { preserveScroll: true })
+                                }
+                            >
+                                <Calculator /> Hitung ulang nilai
+                            </Button>
+                        )}
                     </CardHeader>
                     <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         {exam.sections.map((s) => {

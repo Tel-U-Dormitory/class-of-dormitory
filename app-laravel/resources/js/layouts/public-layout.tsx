@@ -11,7 +11,7 @@ import { LogOut } from 'lucide-react';
  * Layout area publik & peserta. Selalu bertema gelap (navy) sesuai identitas visual CoD.
  */
 export default function PublicLayout({ children, className, wide = false }: { children: React.ReactNode; className?: string; wide?: boolean }) {
-    const { auth } = usePage<SharedData>().props;
+    const { auth, registrationOpen } = usePage<SharedData>().props;
 
     return (
         <div className="dark bg-background text-foreground relative isolate flex min-h-svh flex-col">
@@ -43,9 +43,11 @@ export default function PublicLayout({ children, className, wide = false }: { ch
                                 <Button asChild variant="ghost" size="sm">
                                     <Link href={route('participant.login')}>Masuk</Link>
                                 </Button>
-                                <Button asChild size="sm">
-                                    <Link href={route('participant.register')}>Daftar</Link>
-                                </Button>
+                                {registrationOpen && (
+                                    <Button asChild size="sm">
+                                        <Link href={route('participant.register')}>Daftar</Link>
+                                    </Button>
+                                )}
                             </>
                         )}
                     </nav>

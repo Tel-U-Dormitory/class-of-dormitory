@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\QuestionController;
 use App\Http\Controllers\Admin\QuestionGroupController;
 use App\Http\Controllers\Admin\ResultController;
 use App\Http\Controllers\Admin\SectionController;
+use App\Http\Controllers\Admin\UserController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('auth')->group(function () {
@@ -42,6 +43,7 @@ Route::middleware('auth')->group(function () {
             Route::put('ujian/{exam}', [ExamController::class, 'update'])->name('exams.update');
             Route::patch('ujian/{exam}/status', [ExamController::class, 'updateStatus'])->name('exams.status');
             Route::patch('ujian/{exam}/publikasi', [ExamController::class, 'togglePublish'])->name('exams.publish');
+            Route::post('ujian/{exam}/nilai-ulang', [ExamController::class, 'rescore'])->name('exams.rescore');
             Route::delete('ujian/{exam}', [ExamController::class, 'destroy'])->name('exams.destroy');
 
             Route::post('ujian/{exam}/attempt/{attempt}/hentikan', [MonitorController::class, 'forceSubmit'])->name('attempts.force-submit');
@@ -57,6 +59,12 @@ Route::middleware('auth')->group(function () {
             Route::delete('soal/{question}', [QuestionController::class, 'destroy'])->name('questions.destroy');
 
             Route::get('media', [MediaController::class, 'show'])->name('media');
+            Route::put('pendaftaran', [DashboardController::class, 'updateRegistration'])->name('registration.update');
+
+            Route::get('panitia', [UserController::class, 'index'])->name('users.index');
+            Route::post('panitia', [UserController::class, 'store'])->name('users.store');
+            Route::put('panitia/{user}', [UserController::class, 'update'])->name('users.update');
+            Route::delete('panitia/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
             Route::post('ujian/{exam}/tetapkan-cast', [CastController::class, 'apply'])->name('exams.cast.apply');
             Route::patch('ujian/{exam}/attempt/{attempt}/spesialis', [ResultController::class, 'specialist'])->name('attempts.specialist');

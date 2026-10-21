@@ -50,6 +50,36 @@ Data demo lokal (`DemoResultsSeeder`) mensimulasikan 25 peserta mengerjakan ujia
 | Admin | Semua: ujian, bank soal, status peserta, reset token, hentikan/tambah waktu peserta |
 | Operator | Dashboard, daftar & detail peserta, monitor live, hasil & ekspor CSV, cast reveal, bracket (lihat), layar kiosk |
 
+## Kapasitas & deploy
+
+Uji beban lokal (`scripts/loadtest.mjs`, 150 peserta login → mulai → observasi → menjawab terus, server PHP 8 worker + MySQL di laptop 12 core):
+
+| Skenario | Jawaban/detik | p95 simpan jawaban | Error |
+|---|---|---|---|
+| Jeda pikir ~2 dtk (±10× beban nyata) | 62 | 73 ms | 0 |
+| Jeda pikir ~0,4 dtk (±40× beban nyata) | 243 | 292 ms | 0 |
+| 150 peserta habis waktu bersamaan (`exam:sync-attempts`) | — | 6,8 dtk untuk semua | 0 |
+
+Beban nyata 150 peserta hanya sekitar 5–8 request/detik, jadi VPS kecil sudah cukup.
+
+**Rekomendasi server:** 2 vCPU, 2–4 GB RAM, Nginx + PHP-FPM 8.3+ (`pm.max_children` ±16), MySQL 8, HTTPS.
+
+Checklist produksi:
+
+1. `.env`: `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://…`, kredensial DB, `SESSION_SECURE_COOKIE=true`. Disarankan `CACHE_STORE=redis` (atau `file`) agar rate limiter tidak menulis ke MySQL tiap request.
+2. `composer install --no-dev -o`, `npm ci && npm run build`, `php artisan migrate --force`, `php artisan db:seed --class=BuildingSeeder`, `php artisan optimize`.
+3. **Wajib:** cron `* * * * * php /path/artisan schedule:run` agar pilar peserta yang offline tetap ditutup dan dinilai saat waktu habis.
+4. Folder `storage/` harus bisa ditulis; backup database **dan** `storage/app/private` (foto peserta, media soal) sebelum dan sesudah ujian.
+5. Buat akun panitia: `php artisan cod:create-admin email@domain "Nama"`.
+6. Sebelum hari H, jalankan uji beban terhadap server sungguhan:
+
+   ```bash
+   php artisan tinker --execute='foreach (range(1,150) as $i) App\Models\Participant::factory()->create(["nim" => sprintf("1359%04d", $i)]);'
+   BASE=https://domain-kamu USERS=150 DURATION=60 node scripts/loadtest.mjs
+   ```
+
+   Lalu hapus peserta uji (`nim` diawali 1359) dan attempt-nya.
+
 ## Test
 
 ```bash

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ChallengeStatus;
 use App\Enums\CompetitionMode;
 use App\Enums\GameType;
+use Database\Factories\ChallengeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Challenge extends Model
 {
-    /** @use HasFactory<\Database\Factories\ChallengeFactory> */
+    /** @use HasFactory<ChallengeFactory> */
     use HasFactory;
 
     protected $fillable = [

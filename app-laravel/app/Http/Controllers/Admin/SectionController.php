@@ -31,6 +31,7 @@ class SectionController extends Controller
                 'label' => $section->label(),
                 'minutes' => intdiv($section->duration_seconds, 60),
             ],
+            'locked' => $section->exam->questionBankLocked(),
             'groups' => $section->groups->map(fn (QuestionGroup $group) => [
                 'id' => $group->id,
                 'title' => $group->title,

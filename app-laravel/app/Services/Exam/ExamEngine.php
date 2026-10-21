@@ -30,15 +30,21 @@ use Illuminate\Support\Facades\DB;
  */
 class ExamEngine
 {
+    /** Transaksi diulang otomatis bila MySQL melaporkan deadlock saat banyak peserta bersamaan. */
+    private const TRANSACTION_ATTEMPTS = 5;
+
     public function __construct(private ScoringService $scoring) {}
 
     public function start(Participant $participant, Exam $exam): ExamAttempt
     {
         return DB::transaction(function () use ($participant, $exam) {
+            // Kunci baris peserta (primary key), bukan rentang di exam_attempts: SELECT ... FOR UPDATE
+            // pada baris yang belum ada memicu gap lock dan deadlock saat ratusan peserta mulai bersamaan.
+            $participant = Participant::query()->lockForUpdate()->findOrFail($participant->id);
+
             $existing = ExamAttempt::query()
                 ->where('exam_id', $exam->id)
                 ->where('participant_id', $participant->id)
-                ->lockForUpdate()
                 ->first();
 
             if ($existing) {
@@ -75,7 +81,7 @@ class ExamEngine
             $participant->forceFill(['status' => ParticipantStatus::InExam])->save();
 
             return $attempt->refresh();
-        });
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
@@ -121,7 +127,7 @@ class ExamEngine
             }
 
             return $attempt->refresh();
-        });
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     /**
@@ -308,7 +314,7 @@ class ExamEngine
             $callback($attempt);
 
             return $attempt->refresh();
-        });
+        }, self::TRANSACTION_ATTEMPTS);
     }
 
     private function openSection(ExamAttempt $attempt, ExamSection $section, CarbonInterface $at): void

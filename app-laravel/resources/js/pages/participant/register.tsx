@@ -7,11 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import PublicLayout from '@/layouts/public-layout';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { ImagePlus, LoaderCircle } from 'lucide-react';
+import { ImagePlus, LoaderCircle, Lock } from 'lucide-react';
 import { FormEventHandler, useEffect, useState } from 'react';
 
 interface Props {
     buildings: { id: number; name: string }[];
+    closedMessage: string | null;
 }
 
 type RegisterForm = {
@@ -37,7 +38,29 @@ function Field({ id, label, error, hint, children }: { id: string; label: string
     );
 }
 
-export default function Register({ buildings }: Props) {
+export default function Register({ buildings, closedMessage }: Props) {
+    if (closedMessage) {
+        return (
+            <PublicLayout className="flex items-center px-4 py-16">
+                <Head title="Pendaftaran Ditutup" />
+                <div className="mx-auto max-w-md text-center">
+                    <div className="bg-muted mx-auto flex size-14 items-center justify-center rounded-full">
+                        <Lock className="text-muted-foreground size-6" />
+                    </div>
+                    <h1 className="font-display mt-6 text-2xl font-bold">Pendaftaran ditutup</h1>
+                    <p className="text-muted-foreground mt-3">{closedMessage}</p>
+                    <Button asChild variant="outline" className="mt-8">
+                        <Link href={route('participant.login')}>Sudah terdaftar? Masuk</Link>
+                    </Button>
+                </div>
+            </PublicLayout>
+        );
+    }
+
+    return <RegisterForm buildings={buildings} />;
+}
+
+function RegisterForm({ buildings }: { buildings: Props['buildings'] }) {
     const { data, setData, post, processing, errors } = useForm<RegisterForm>({
         full_name: '',
         nim: '',

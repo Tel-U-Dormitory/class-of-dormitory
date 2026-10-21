@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AttemptStatus;
+use App\Enums\Pillar;
 use App\Enums\SubmitReason;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -38,7 +39,7 @@ class ExamAttempt extends Model
             'break_ends_at' => 'datetime',
             'submitted_at' => 'datetime',
             'last_seen_at' => 'datetime',
-            'specialist_pillar' => \App\Enums\Pillar::class,
+            'specialist_pillar' => Pillar::class,
         ];
     }
 

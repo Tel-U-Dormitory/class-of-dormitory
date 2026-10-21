@@ -15,16 +15,12 @@ use Inertia\Response;
 
 class MonitorController extends Controller
 {
-    public function show(Exam $exam, ExamEngine $engine): Response
+    public function show(Exam $exam): Response
     {
         $exam->load('sections');
 
-        // Pastikan status yang dipantau mutakhir walau peserta sedang offline.
-        ExamAttempt::where('exam_id', $exam->id)
-            ->whereIn('status', [AttemptStatus::InProgress, AttemptStatus::OnBreak])
-            ->get()
-            ->each(fn (ExamAttempt $attempt) => $engine->sync($attempt));
-
+        // Transisi peserta offline diproses scheduler (exam:sync-attempts tiap menit), bukan di sini,
+        // agar polling monitor tetap ringan saat ratusan peserta aktif.
         $questionCounts = Question::query()
             ->join('question_groups', 'question_groups.id', '=', 'questions.question_group_id')
             ->where('questions.is_active', true)

@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\AttemptStatus;
 use App\Enums\ExamStatus;
+use Database\Factories\ExamFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Exam extends Model
 {
-    /** @use HasFactory<\Database\Factories\ExamFactory> */
+    /** @use HasFactory<ExamFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -56,6 +58,16 @@ class Exam extends Model
     public function isOpen(): bool
     {
         return $this->status === ExamStatus::Open;
+    }
+
+    /**
+     * Bank soal dikunci selama ujian dibuka atau masih ada peserta yang mengerjakan,
+     * agar kunci jawaban dan poin tidak berubah di tengah ujian.
+     */
+    public function questionBankLocked(): bool
+    {
+        return $this->isOpen()
+            || $this->attempts()->whereIn('status', [AttemptStatus::InProgress, AttemptStatus::OnBreak])->exists();
     }
 
     public function totalDurationSeconds(): int

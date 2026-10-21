@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\StimulusType;
+use App\Http\Controllers\Admin\Concerns\GuardsQuestionBank;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSection;
 use App\Models\QuestionGroup;
@@ -14,8 +15,11 @@ use Illuminate\Validation\ValidationException;
 
 class QuestionGroupController extends Controller
 {
+    use GuardsQuestionBank;
+
     public function store(Request $request, ExamSection $section): RedirectResponse
     {
+        $this->ensureQuestionBankEditable($section->exam);
         $group = new QuestionGroup(['exam_section_id' => $section->id]);
         $this->fill($request, $group);
 
@@ -24,6 +28,7 @@ class QuestionGroupController extends Controller
 
     public function update(Request $request, QuestionGroup $group): RedirectResponse
     {
+        $this->ensureQuestionBankEditable($group->section->exam);
         $this->fill($request, $group);
 
         return back()->with('success', 'Grup soal disimpan.');
@@ -31,6 +36,7 @@ class QuestionGroupController extends Controller
 
     public function destroy(QuestionGroup $group): RedirectResponse
     {
+        $this->ensureQuestionBankEditable($group->section->exam);
         if ($group->section->exam->attempts()->exists()) {
             return back()->with('error', 'Ujian sudah dikerjakan peserta. Nonaktifkan soal alih-alih menghapus grup.');
         }
