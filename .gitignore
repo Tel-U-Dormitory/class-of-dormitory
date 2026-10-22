@@ -23,3 +23,19 @@ Homestead.json
 Homestead.yaml
 npm-debug.log
 yarn-error.log
+
+# Environment variants (keep the setup template)
+.env.*
+!.env.example
+
+# Local tooling and generated caches
+/.vite/
+/.claude/
+/.codex/
+/.agents/
+/.aws/
+*.log
+
+# Local database files
+/database/*.sqlite
+/database/*.sqlite-*

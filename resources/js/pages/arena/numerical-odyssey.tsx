@@ -50,7 +50,11 @@ export default function NumericalOdyssey({ challenge, entrants }: Props) {
         setSubmitting(true);
         try {
             const res = await postJson<SubmitResult>(route('arena.submit', challenge.code), { entrant_id: entrantId, tokens });
-            res.correct ? playCorrect() : playWrong();
+            if (res.correct) {
+                playCorrect();
+            } else {
+                playWrong();
+            }
             setOverlay({ result: res.correct ? 'correct' : 'wrong', detail: res.message });
         } catch (error) {
             playWrong();

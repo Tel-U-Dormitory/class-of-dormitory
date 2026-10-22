@@ -44,7 +44,11 @@ export default function ArenaGame({ challenge, entrants }: Props) {
         try {
             const res = await postJson<SubmitResult>(route('arena.submit', challenge.code), { entrant_id: entrantId, answer });
             if (revealResult) {
-                res.correct ? playCorrect() : playWrong();
+                if (res.correct) {
+                    playCorrect();
+                } else {
+                    playWrong();
+                }
                 setOverlay({
                     result: res.correct ? 'correct' : 'wrong',
                     detail: res.attempts_left !== null && !res.correct ? `Sisa kesempatan: ${res.attempts_left}` : null,
