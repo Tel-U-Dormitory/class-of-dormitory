@@ -1,0 +1,192 @@
+@import 'tailwindcss';
+
+@plugin 'tailwindcss-animate';
+
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans:
+        'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+    /* Hanya untuk judul display (landing, layar transisi). Jangan untuk teks isi. */
+    --font-display: 'Cinzel', ui-serif, Georgia, serif;
+
+    --color-gold: var(--gold);
+    --color-pillar-memory: var(--pillar-memory);
+    --color-pillar-spatial: var(--pillar-spatial);
+    --color-pillar-numeric: var(--pillar-numeric);
+    --color-pillar-logic: var(--pillar-logic);
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+
+    --color-sidebar: var(--sidebar-background);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/*
+  The default border color has changed to `currentColor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+:root {
+    --background: hsl(0, 0%, 100%);
+    --foreground: hsl(222, 47%, 9%);
+    --card: hsl(0, 0%, 100%);
+    --card-foreground: hsl(222, 47%, 9%);
+    --popover: hsl(0, 0%, 100%);
+    --popover-foreground: hsl(222, 47%, 9%);
+    --primary: hsl(352, 78%, 42%);
+    --primary-foreground: hsl(0, 0%, 100%);
+    --secondary: hsl(220, 20%, 96%);
+    --secondary-foreground: hsl(222, 47%, 11%);
+    --muted: hsl(220, 20%, 96%);
+    --muted-foreground: hsl(220, 9%, 42%);
+    --accent: hsl(220, 20%, 95%);
+    --accent-foreground: hsl(222, 47%, 11%);
+    --destructive: hsl(0, 72%, 51%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    --border: hsl(220, 16%, 90%);
+    --input: hsl(220, 16%, 86%);
+    --ring: hsl(352, 78%, 42%);
+    --chart-1: hsl(352, 78%, 45%);
+    --chart-2: hsl(36, 75%, 50%);
+    --chart-3: hsl(199, 70%, 42%);
+    --chart-4: hsl(262, 60%, 55%);
+    --chart-5: hsl(160, 55%, 38%);
+    --radius: 0.625rem;
+    --sidebar-background: hsl(220, 20%, 98%);
+    --sidebar-foreground: hsl(222, 20%, 30%);
+    --sidebar-primary: hsl(352, 78%, 42%);
+    --sidebar-primary-foreground: hsl(0, 0%, 100%);
+    --sidebar-accent: hsl(220, 20%, 93%);
+    --sidebar-accent-foreground: hsl(222, 47%, 11%);
+    --sidebar-border: hsl(220, 16%, 90%);
+    --sidebar-ring: hsl(352, 78%, 42%);
+
+    --gold: hsl(36, 72%, 44%);
+    --pillar-memory: hsl(262, 70%, 58%);
+    --pillar-spatial: hsl(192, 80%, 38%);
+    --pillar-numeric: hsl(32, 90%, 46%);
+    --pillar-logic: hsl(152, 60%, 36%);
+}
+
+.dark {
+    --background: hsl(222, 47%, 6%);
+    --foreground: hsl(210, 30%, 96%);
+    --card: hsl(222, 40%, 9%);
+    --card-foreground: hsl(210, 30%, 96%);
+    --popover: hsl(222, 40%, 9%);
+    --popover-foreground: hsl(210, 30%, 96%);
+    --primary: hsl(354, 82%, 54%);
+    --primary-foreground: hsl(0, 0%, 100%);
+    --secondary: hsl(222, 30%, 15%);
+    --secondary-foreground: hsl(210, 30%, 96%);
+    --muted: hsl(222, 32%, 12%);
+    --muted-foreground: hsl(218, 15%, 66%);
+    --accent: hsl(222, 30%, 15%);
+    --accent-foreground: hsl(210, 30%, 96%);
+    --destructive: hsl(0, 75%, 58%);
+    --destructive-foreground: hsl(0, 0%, 98%);
+    --border: hsl(222, 25%, 17%);
+    --input: hsl(222, 25%, 20%);
+    --ring: hsl(354, 82%, 54%);
+    --chart-1: hsl(354, 82%, 58%);
+    --chart-2: hsl(38, 85%, 60%);
+    --chart-3: hsl(195, 75%, 55%);
+    --chart-4: hsl(262, 75%, 70%);
+    --chart-5: hsl(155, 55%, 50%);
+    --sidebar-background: hsl(222, 45%, 7%);
+    --sidebar-foreground: hsl(218, 20%, 80%);
+    --sidebar-primary: hsl(354, 82%, 54%);
+    --sidebar-primary-foreground: hsl(0, 0%, 100%);
+    --sidebar-accent: hsl(222, 30%, 14%);
+    --sidebar-accent-foreground: hsl(210, 30%, 96%);
+    --sidebar-border: hsl(222, 25%, 15%);
+    --sidebar-ring: hsl(354, 82%, 54%);
+
+    --gold: hsl(38, 80%, 62%);
+    --pillar-memory: hsl(262, 85%, 74%);
+    --pillar-spatial: hsl(190, 80%, 58%);
+    --pillar-numeric: hsl(36, 92%, 62%);
+    --pillar-logic: hsl(152, 60%, 55%);
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+@layer components {
+    .font-display {
+        font-family: var(--font-display);
+        letter-spacing: 0.04em;
+    }
+
+    /* Teks soal: nyaman dibaca lama, tanpa font dekoratif. */
+    .exam-prose {
+        font-size: 1.0625rem;
+        line-height: 1.75;
+        white-space: pre-line;
+    }
+}
