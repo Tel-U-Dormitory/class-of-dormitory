@@ -10,6 +10,8 @@ import { ArrowRight, CalendarDays, Clock, ShieldCheck } from 'lucide-react';
 interface Props {
     exam: { title: string; description: string | null; is_open: boolean; scheduled_at: string | null; total_minutes: number } | null;
     pillars: { value: Pillar; label: string; description: string }[];
+    result: { score_total: number; sections: { label: string; score: number }[] } | null;
+    castOpen: boolean;
 }
 
 const steps = [
@@ -19,7 +21,7 @@ const steps = [
     { title: 'Babak utama', body: 'Cast bertanding di chapter, challenge, dan deathmatch Season 3.' },
 ];
 
-export default function Welcome({ exam, pillars }: Props) {
+export default function Welcome({ exam, pillars, result, castOpen }: Props) {
     const { auth, registrationOpen } = usePage<SharedData>().props;
 
     return (
@@ -96,6 +98,41 @@ export default function Welcome({ exam, pillars }: Props) {
                     )}
                 </div>
             </section>
+
+            {castOpen && (
+                <section className="mx-auto max-w-6xl px-4 pt-12 sm:px-6">
+                    <div className="border-gold/40 bg-card flex flex-col gap-4 rounded-xl border p-6 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <span className="text-gold text-xs font-semibold tracking-wider uppercase">Pengumuman</span>
+                            <h2 className="font-display mt-1 text-2xl font-bold">Cast Season 3 sudah diumumkan</h2>
+                            <p className="text-muted-foreground mt-1 text-sm">Lihat siapa saja yang lolos dari tiap gedung.</p>
+                        </div>
+                        <Button asChild size="lg">
+                            <Link href={route('cast.show')}>
+                                Lihat Cast Reveal <ArrowRight />
+                            </Link>
+                        </Button>
+                    </div>
+                </section>
+            )}
+
+            {result && (
+                <section className="mx-auto max-w-6xl px-4 pt-6 sm:px-6">
+                    <div className="border-gold/40 bg-card rounded-xl border p-6">
+                        <h2 className="font-display text-2xl font-bold">Hasil ujianmu</h2>
+                        <p className="text-muted-foreground mt-3 text-sm">Total skor</p>
+                        <p className="text-gold text-5xl font-bold tabular-nums">{result.score_total}</p>
+                        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            {result.sections.map((s) => (
+                                <div key={s.label} className="bg-background rounded-lg border p-3">
+                                    <p className="text-muted-foreground text-xs">{s.label}</p>
+                                    <p className="text-lg font-semibold tabular-nums">{s.score}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
                 <div className="mb-10 max-w-2xl">

@@ -7,12 +7,15 @@ use App\Http\Controllers\Exam\MediaController;
 use App\Http\Controllers\Exam\ObservationController;
 use App\Http\Controllers\Exam\SessionController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\PublicCastController;
 use App\Http\Controllers\Participant\AuthController;
 use App\Http\Controllers\Participant\DashboardController;
 use App\Http\Controllers\Participant\RegistrationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
+Route::get('/cast', [PublicCastController::class, 'show'])->name('cast.show');
+Route::get('/cast/foto/{participant}', [PublicCastController::class, 'photo'])->name('cast.photo');
 
 // Peserta: pendaftaran & login (token).
 Route::middleware('guest:participant')->group(function () {
