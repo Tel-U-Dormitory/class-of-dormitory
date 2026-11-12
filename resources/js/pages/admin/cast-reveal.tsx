@@ -28,8 +28,8 @@ interface Props {
 }
 
 // Urutan waktu sama dengan versi lama: lampu sorot, lalu peringkat terbawah ke juara.
-const SPOTLIGHT_AT = 200;;
-const REVEAL_AT = [1000, 3000, 5000, 7000];
+const SPOTLIGHT_AT = 100;
+const REVEAL_AT = [500, 3000, 5000, 7000];
 
 const rankTone: Record<number, string> = {
     1: 'text-[#FFD700] [text-shadow:0_0_10px_rgba(255,215,0,0.5)]',
