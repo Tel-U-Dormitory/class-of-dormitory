@@ -28,7 +28,7 @@ interface Props {
 }
 
 // Urutan waktu sama dengan versi lama: lampu sorot, lalu peringkat terbawah ke juara.
-const SPOTLIGHT_AT = 200;;
+const SPOTLIGHT_AT = 200;
 const REVEAL_AT = [1000, 3000, 5000, 7000];
 
 const rankTone: Record<number, string> = {
