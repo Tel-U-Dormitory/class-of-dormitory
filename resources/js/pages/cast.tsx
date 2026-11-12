@@ -72,7 +72,7 @@ export default function CastReveal({ globalKeep, stages }: Props) {
 
         // Kartu dibuka dari peringkat terbawah; jika kurang dari 4, jadwal diambil dari belakang.
         const order = [...stage.cards].sort((a, b) => b.rank - a.rank);
-        const schedule = REVEAL_AT.slice(0, order.length)
+        const schedule = REVEAL_AT.slice(0, order.length);
         order.forEach((card, i) => {
             timers.current.push(
                 window.setTimeout(() => {
