@@ -227,7 +227,7 @@ Urutan update (maintenance dan scheduler sudah dihentikan seperti di atas):
 2. Unduh artifact dari run commit baru yang sukses. Ekstrak ke direktori deployment;
    pertahankan `.env.production` dan tinjau perubahan template/Compose/panduan.
 3. Ubah `COD_IMAGE` ke digest baru dari `IMAGE.txt`; sesuaikan variabel baru jika ada.
-4. Jalankan:
+4. Jalankan:..
 
 ```bash
 dc config --quiet
