@@ -7,6 +7,15 @@ return [
     */
     'grace_seconds' => (int) env('EXAM_GRACE_SECONDS', 3),
 
+    // Jendela (detik, dihitung dari tenggat) di mana jawaban pilar yang habis waktu masih diterima.
+    'late_submit_seconds' => (int) env('EXAM_LATE_SUBMIT_SECONDS', 300),
+
+    // Toleransi selisih jam klien saat memeriksa cap waktu jawaban terlambat.
+    'late_skew_seconds' => (int) env('EXAM_LATE_SKEW_SECONDS', 5),
+
+    // Batas jumlah jawaban per request.
+    'max_answers_per_sync' => 500,
+
     // Interval (detik) polling monitor admin.
     'monitor_poll_seconds' => 5,
 

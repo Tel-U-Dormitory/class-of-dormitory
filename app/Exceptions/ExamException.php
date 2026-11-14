@@ -67,6 +67,11 @@ class ExamException extends RuntimeException
         return new self('Tidak sedang dalam jeda.');
     }
 
+    public static function answersWindowClosed(): self
+    {
+        return new self('Batas waktu penerimaan jawaban untuk pilar ini sudah lewat.');
+    }
+
     public function render(Request $request): JsonResponse|RedirectResponse
     {
         if ($request->expectsJson() && ! $request->header('X-Inertia')) {

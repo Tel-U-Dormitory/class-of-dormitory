@@ -10,6 +10,7 @@ use App\Services\Exam\ExamSessionPresenter;
 use App\Support\CurrentExam;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use App\Http\Requests\Exam\SyncAnswersRequest;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -37,8 +38,17 @@ class SessionController extends Controller
         return Inertia::render('exam/session', $presenter->present($attempt));
     }
 
-    public function finishSection(Request $request, ExamEngine $engine): RedirectResponse
+     public function finishSection(Request $request, ExamEngine $engine): RedirectResponse
     {
+        // Local-first: klien mengirim semua jawaban sekaligus. Tanpa payload = alur lama.
+        if ($request->has('answers')) {
+            $data = $request->validate((new SyncAnswersRequest)->rules());
+
+            $engine->submitAnswers($this->attempt($request), (int) $data['section_id'], $data['answers'], finish: true);
+
+            return to_route('exam.session');
+        }
+
         $engine->finishCurrentSection($this->attempt($request));
 
         return to_route('exam.session');

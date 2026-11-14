@@ -7,9 +7,12 @@ import { useIntegrityMonitor } from '@/components/exam/use-integrity-monitor';
 import { FlashToaster } from '@/components/flash-toaster';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useLocalAnswers } from '@/hooks/use-local-answers';
+import { usePendingUploader, type UploadStatus } from '@/hooks/use-pending-uploader';
 import { useServerClock } from '@/hooks/use-server-clock';
+import { isStorageDegraded, requestPersistence } from '@/lib/answer-store';
 import { formatClock } from '@/lib/format';
-import { HttpError, postJson } from '@/lib/http';
+import { postJson } from '@/lib/http';
 import { pillarMeta } from '@/lib/pillars';
 import { cn } from '@/lib/utils';
 import { Head, router } from '@inertiajs/react';
@@ -41,14 +44,22 @@ export default function ExamSession(props: SessionProps) {
         return () => window.clearInterval(id);
     }, [props.attempt.status, current, refresh]);
 
+    // Pengirim jawaban: mengirim pilar yang sudah dikunci (satu request per pilar), diulang otomatis bila gagal.
+    const uploader = usePendingUploader(props.attempt.id, () => router.reload());
+    useEffect(() => {
+        requestPersistence();
+    }, []);
+
     return (
         <div className="dark bg-background text-foreground min-h-svh select-none">
             <Head title={current ? `Pilar ${current.label}` : 'Jeda'} />
 
+            {(uploader.status === 'waiting' || uploader.status === 'auth') && <UploadBanner status={uploader.status} onRetry={() => void uploader.run()} />}
+
             {props.break ? (
                 <BreakScreen breakInfo={props.break} now={now} sections={sections} onExpire={refresh} />
             ) : current ? (
-                <SectionWorkspace key={current.section_id} props={props} now={now} onExpire={refresh} />
+                <SectionWorkspace key={current.section_id} props={props} now={now} onExpire={refresh} uploader={uploader} />
             ) : (
                 <div className="flex min-h-svh items-center justify-center">
                     <LoaderCircle className="text-muted-foreground size-6 animate-spin" />
@@ -157,7 +168,17 @@ function BreakScreen({
 
 type FlatQuestion = { question: ExamQuestion; group: ExamGroup };
 
-function SectionWorkspace({ props, now, onExpire }: { props: SessionProps; now: number; onExpire: () => void }) {
+function SectionWorkspace({
+    props,
+    now,
+    onExpire,
+    uploader,
+}: {
+    props: SessionProps;
+    now: number;
+    onExpire: () => void;
+    uploader: ReturnType<typeof usePendingUploader>;
+}) {
     const current = props.current!;
     const isLastSection = props.sections[props.sections.length - 1]?.id === current.section_id;
     const meta = pillarMeta[current.pillar];
@@ -176,36 +197,39 @@ function SectionWorkspace({ props, now, onExpire }: { props: SessionProps; now: 
     const index = Math.max(0, flat.findIndex((f) => f.question.id === currentId));
     const active = flat[index];
 
-    // Jawaban dikelola lokal (optimistis) lalu dikirim ke server.
-    const [answers, setAnswers] = useState<Record<string, number | null>>(current.answers);
-    const [saveState, setSaveState] = useState<SaveState>('idle');
-    const pending = useRef(0);
+    // Jawaban: React state + IndexedDB. Tidak ada request ke server per jawaban.
+    const { answers, locked, ready, setAnswer, lockAndPersist } = useLocalAnswers(props.attempt.id, current.section_id, current.answers);
+    const saveState: SaveState = isStorageDegraded() ? 'error' : 'saved';
+    const { run: uploadNow, status: uploadStatus } = uploader;
+
+    // Jam server untuk cap waktu jawaban (tidak bergantung jam perangkat peserta).
+    const clockOffset = useRef(props.serverNow - Date.now());
+    useEffect(() => {
+        clockOffset.current = props.serverNow - Date.now();
+    }, [props.serverNow]);
 
     const answeredCount = Object.values(answers).filter((v) => v != null).length;
 
     const saveAnswer = useCallback(
-        (questionId: number, optionId: number | null) => {
-            setAnswers((prev) => ({ ...prev, [questionId]: optionId }));
-            setSaveState('saving');
-            pending.current++;
-            postJson(route('exam.answer', questionId), { option_id: optionId })
-                .then(() => {
-                    pending.current--;
-                    if (pending.current === 0) setSaveState('saved');
-                })
-                .catch((error: unknown) => {
-                    pending.current--;
-                    setSaveState('error');
-                    if (error instanceof HttpError && error.status === 422) onExpire();
-                });
+        (questionId: number, optionId: number | null) => setAnswer(questionId, optionId, Date.now() + clockOffset.current),
+        [setAnswer],
+    );
+
+    // Kunci pilar (aman dari refresh), lalu kirim satu kali. Jeda acak meratakan lonjakan saat waktu habis.
+    const finishSection = useCallback(
+        async (jitterMs = 0) => {
+            await lockAndPersist();
+            if (jitterMs > 0) await new Promise((resolve) => window.setTimeout(resolve, jitterMs));
+            void uploadNow();
         },
-        [onExpire],
+        [lockAndPersist, uploadNow],
     );
 
     const remaining = current.deadline_at - now;
+    const expired = remaining <= 0;
     useEffect(() => {
-        if (remaining <= 0) onExpire();
-    }, [remaining <= 0, onExpire]); // eslint-disable-line react-hooks/exhaustive-deps
+        if (expired && ready && !locked) void finishSection(Math.random() * 5000);
+    }, [expired, ready, locked, finishSection]);
 
     // Observasi aktif: tampil layar penuh, tutup otomatis saat waktunya habis.
     const observing = current.groups.find((g) => g.observation.state === 'active') ?? null;
@@ -341,13 +365,20 @@ function SectionWorkspace({ props, now, onExpire }: { props: SessionProps; now: 
                         <Button variant="outline" onClick={() => setConfirmFinish(false)}>
                             Kembali
                         </Button>
-                        <Button disabled={busy || saveState === 'saving'} onClick={() => post(route('exam.section.finish'), () => setConfirmFinish(false))}>
-                            {busy && <LoaderCircle className="animate-spin" />}
+                        <Button
+                            disabled={!ready || locked}
+                            onClick={() => {
+                                setConfirmFinish(false);
+                                void finishSection();
+                            }}
+                        >
                             {isLastSection ? 'Ya, kirim' : 'Ya, selesaikan'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {locked && <SubmittingOverlay status={uploadStatus} isLast={isLastSection} onRetry={() => void uploadNow()} />}
         </div>
     );
 }
@@ -356,9 +387,52 @@ function SaveIndicator({ state, answered, total }: { state: SaveState; answered:
     const text = {
         idle: `${answered}/${total} terjawab`,
         saving: 'Menyimpan…',
-        saved: `Tersimpan · ${answered}/${total} terjawab`,
-        error: 'Gagal menyimpan, periksa koneksi',
+        saved: `Tersimpan di perangkat · ${answered}/${total} terjawab`,
+        error: 'Penyimpanan lokal tidak tersedia, jangan tutup halaman',
     }[state];
 
     return <p className={cn('text-xs', state === 'error' ? 'text-destructive' : 'text-muted-foreground')}>{text}</p>;
+}
+
+function UploadBanner({ status, onRetry }: { status: UploadStatus; onRetry: () => void }) {
+    const auth = status === 'auth';
+
+    return (
+        <div
+            className="bg-destructive text-destructive-foreground fixed inset-x-0 top-0 z-40 flex items-center justify-center gap-3 px-4 py-1.5 text-xs"
+            role="status"
+        >
+            <span>
+                {auth
+                    ? 'Sesi login berakhir. Jawaban aman di perangkat ini; muat ulang halaman lalu login kembali.'
+                    : 'Jawaban pilar sebelumnya belum terkirim dan aman di perangkat ini. Mencoba mengirim ulang…'}
+            </span>
+            <button type="button" className="underline" onClick={auth ? () => window.location.reload() : onRetry}>
+                {auth ? 'Muat ulang' : 'Coba sekarang'}
+            </button>
+        </div>
+    );
+}
+
+function SubmittingOverlay({ status, isLast, onRetry }: { status: UploadStatus; isLast: boolean; onRetry: () => void }) {
+    const content = {
+        idle: { title: 'Menyiapkan pengiriman…', text: 'Jawaban kamu sudah tersimpan di perangkat ini.' },
+        sending: { title: isLast ? 'Mengirim ujian…' : 'Mengirim jawaban…', text: 'Jangan tutup halaman ini.' },
+        waiting: { title: 'Menunggu koneksi', text: 'Jawaban kamu aman di perangkat ini. Mencoba mengirim ulang otomatis…' },
+        auth: {
+            title: 'Sesi login berakhir',
+            text: 'Jawaban kamu tetap aman di perangkat ini. Muat ulang halaman lalu login kembali; pengiriman dilanjutkan otomatis.',
+        },
+        rejected: { title: 'Pengiriman ditolak server', text: 'Jawaban tetap tersimpan di perangkat ini. Hubungi pengawas.' },
+    }[status];
+
+    return (
+        <div className="bg-background/95 fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 px-6 text-center backdrop-blur" role="alert">
+            {status === 'idle' || status === 'sending' ? <LoaderCircle className="size-8 animate-spin" /> : <CircleAlert className="text-destructive size-8" />}
+            <h2 className="text-xl font-semibold">{content.title}</h2>
+            <p className="text-muted-foreground max-w-md text-sm">{content.text}</p>
+            {status === 'waiting' && <Button onClick={onRetry}>Coba kirim sekarang</Button>}
+            {status === 'auth' && <Button onClick={() => window.location.reload()}>Muat ulang halaman</Button>}
+        </div>
+    );
 }

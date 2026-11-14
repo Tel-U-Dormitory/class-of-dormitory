@@ -21,6 +21,8 @@ Route::middleware('auth')->group(function () {
     Route::name('admin.')->group(function () {
         // Operator & admin: pemantauan dan data peserta.
         Route::get('peserta', [ParticipantController::class, 'index'])->name('participants.index');
+        Route::get('peserta/baru', [ParticipantController::class, 'create'])->name('participants.create');
+        Route::post('peserta', [ParticipantController::class, 'store'])->name('participants.store');
         Route::get('peserta/{participant}', [ParticipantController::class, 'show'])->name('participants.show');
         Route::get('peserta/{participant}/foto', [MediaController::class, 'participantPhoto'])->name('participants.photo');
 

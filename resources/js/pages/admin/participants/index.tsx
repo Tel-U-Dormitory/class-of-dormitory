@@ -8,7 +8,7 @@ import AppLayout from '@/layouts/app-layout';
 import { formatDateTime } from '@/lib/format';
 import { type Option, type Paginated } from '@/types';
 import { Head, Link, router } from '@inertiajs/react';
-import { Search, UserRound } from 'lucide-react';
+import { Plus, Search, UserRound } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 interface ParticipantRow {
@@ -54,7 +54,17 @@ export default function ParticipantsIndex({ participants, filters, buildings, st
         <AppLayout breadcrumbs={[{ title: 'Peserta', href: '/admin/peserta' }]}>
             <Head title="Peserta" />
             <div className="space-y-6 p-4 md:p-6">
-                <PageHeader title="Peserta" description={`${participants.total} peserta terdaftar`} />
+                <PageHeader
+                    title="Peserta"
+                    description={`${participants.total} peserta terdaftar`}
+                    actions={
+                        <Button asChild>
+                            <Link href={route('admin.participants.create')}>
+                                <Plus /> Tambah peserta
+                            </Link>
+                        </Button>
+                    }
+                />
 
                 <div className="grid gap-3 sm:grid-cols-[1fr_12rem_12rem]">
                     <div className="relative">
