@@ -37,9 +37,15 @@ export default function Lobby({ exam, hasActiveAttempt }: Props) {
     const [starting, setStarting] = useState(false);
 
     const start = () => {
+        if (starting) return; // sudah proses atau sudah terkirim jadi klik berikutnya diabaikan
+
         setStarting(true);
         document.documentElement.requestFullscreen?.().catch(() => {});
-        router.post(route('exam.start'), {}, { onFinish: () => setStarting(false) });
+        // Jeda acak 0-3 detik agar 170 peserta tidak menekan server di detik yang sama.
+        window.setTimeout(
+            () => router.post(route('exam.start'), {}, { onFinish: () => setStarting(false) }),
+            Math.random() * 3000,
+        );
     };
 
     return (

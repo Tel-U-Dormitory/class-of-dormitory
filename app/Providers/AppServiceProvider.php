@@ -30,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('exam-answer', $perParticipant(120));
         RateLimiter::for('exam-event', $perParticipant(60));
         RateLimiter::for('exam-heartbeat', $perParticipant(30));
+        RateLimiter::for('exam-sync', $perParticipant(20));
 
         // Pendaftaran massal dari satu jaringan tetap dibatasi, tapi longgar.
         RateLimiter::for('registration', fn (Request $request) => Limit::perMinute(60)->by($request->ip()));

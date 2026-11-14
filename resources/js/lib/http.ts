@@ -6,6 +6,7 @@ export class HttpError extends Error {
     constructor(
         message: string,
         public status: number,
+        public data: unknown = null,
     ) {
         super(message);
     }
@@ -32,7 +33,7 @@ export async function postJson<T = unknown>(url: string, body: Record<string, un
     const data = await response.json().catch(() => ({}));
 
     if (!response.ok) {
-        throw new HttpError((data as { message?: string }).message ?? 'Terjadi kesalahan jaringan.', response.status);
+        throw new HttpError((data as { message?: string }).message ?? 'Terjadi kesalahan jaringan.', response.status, data);
     }
 
     return data as T;

@@ -16,6 +16,7 @@ use App\Models\ExamSection;
 use App\Models\Participant;
 use App\Models\Question;
 use App\Models\QuestionGroup;
+use App\Models\QuestionOption;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\DB;
@@ -250,6 +251,164 @@ class ExamEngine
         return $answer;
     }
 
+        /**
+     * Menerima banyak jawaban sekaligus untuk satu pilar: checkpoint ($finish = false)
+     * atau pengiriman akhir ($finish = true). Satu transaksi, satu lock, satu upsert.
+     *
+     * Jawaban yang tidak valid dilewati (bukan menggagalkan seluruh request) dan
+     * dilaporkan di 'rejected', supaya satu data basi tidak membuat semua jawaban hilang.
+     *
+     * @param  array<int, array{q: int, o?: int|null, t?: int|null}>  $items
+     * @return array{attempt: ExamAttempt, accepted: int, rejected: list<int>}
+     */
+    public function submitAnswers(ExamAttempt $attempt, int $sectionId, array $items, bool $finish): array
+    {
+        return DB::transaction(function () use ($attempt, $sectionId, $items, $finish) {
+            $attempt = ExamAttempt::query()->lockForUpdate()->findOrFail($attempt->id);
+            $wasSubmitted = $attempt->isSubmitted();
+            $now = $this->now();
+
+            $attemptSection = AttemptSection::query()
+                ->with('section')
+                ->where('exam_attempt_id', $attempt->id)
+                ->where('exam_section_id', $sectionId)
+                ->first() ?? throw ExamException::sectionLocked();
+
+            $late = $this->answersAreLate($attempt, $attemptSection, $now);
+
+            [$rows, $rejected] = $this->buildAnswerRows($attempt, $attemptSection, $items, $now, $late);
+
+            if ($rows !== []) {
+                AttemptAnswer::upsert($rows, ['exam_attempt_id', 'question_id'], ['question_option_id', 'answered_at']);
+            }
+
+            if ($late) {
+                if ($attemptSection->finished_at === null) {
+                    // Tenggat lewat tapi pilar belum ditutup: tutup sekarang (TimeUp), nilai bila ini pilar terakhir.
+                    $attempt = $this->sync($attempt);
+                } elseif ($wasSubmitted && $rows !== []) {
+                    // Ujian sudah terlanjur dinilai tanpa jawaban ini: nilai ulang (idempoten).
+                    $this->scoring->score($attempt->fresh(['sections']));
+                }
+            } elseif ($finish) {
+                $this->assertInProgress($attempt);
+                $this->finishSection($attempt, $attemptSection, $now, SubmitReason::Manual);
+            }
+
+            $attempt->forceFill(['last_seen_at' => $now])->save();
+
+            return ['attempt' => $attempt->refresh(), 'accepted' => count($rows), 'rejected' => $rejected];
+        }, self::TRANSACTION_ATTEMPTS);
+    }
+
+    /**
+     * Menentukan apakah pengiriman ini termasuk "terlambat". Melempar exception bila pilar
+     * sudah terkunci atau jendela terlambat habis.
+     */
+    private function answersAreLate(ExamAttempt $attempt, AttemptSection $section, CarbonImmutable $now): bool
+    {
+        $deadline = $section->deadline_at;
+
+        if ($section->finished_at === null) {
+            if ($now->lt($deadline->copy()->addSeconds((int) config('exam.grace_seconds')))) {
+                return false;
+            }
+        } elseif ($section->submit_reason !== SubmitReason::TimeUp) {
+            // Selesai manual, dihentikan admin, atau didiskualifikasi: tidak ada jendela terlambat.
+            throw $attempt->isSubmitted() ? ExamException::alreadySubmitted() : ExamException::sectionLocked();
+        }
+
+        if ($now->gt($deadline->copy()->addSeconds((int) config('exam.late_submit_seconds')))) {
+            throw ExamException::answersWindowClosed();
+        }
+
+        return true;
+    }
+
+    /**
+     * Validasi di memori (empat query total) lalu susun baris untuk satu upsert.
+     *
+     * @return array{0: list<array<string, mixed>>, 1: list<int>}
+     */
+    private function buildAnswerRows(ExamAttempt $attempt, AttemptSection $section, array $items, CarbonImmutable $now, bool $late): array
+    {
+        $items = collect($items)->keyBy('q'); // soal yang sama dikirim dua kali: yang terakhir dipakai
+
+        if ($items->isEmpty()) {
+            return [[], []];
+        }
+
+        $deadline = $section->deadline_at;
+        $upper = $late ? CarbonImmutable::instance($deadline) : $now;
+        $cutoffMs = $late
+            ? $deadline->copy()->addSeconds((int) config('exam.late_skew_seconds'))->getTimestampMs()
+            : null;
+
+        // Soal aktif milik pilar ini.
+        $questions = Question::query()
+            ->join('question_groups', 'question_groups.id', '=', 'questions.question_group_id')
+            ->where('question_groups.exam_section_id', $section->exam_section_id)
+            ->where('questions.is_active', true)
+            ->whereIn('questions.id', $items->keys())
+            ->get(['questions.id', 'questions.question_group_id'])
+            ->keyBy('id');
+
+        // Grup yang butuh observasi: jawaban hanya sah bila observasinya sudah selesai.
+        $needObservation = QuestionGroup::query()
+            ->whereIn('id', $questions->pluck('question_group_id')->unique())
+            ->get(['id', 'stimulus_type'])
+            ->filter(fn (QuestionGroup $g) => $g->requiresObservation())
+            ->pluck('id');
+
+        $observed = $needObservation->isEmpty()
+            ? collect()
+            : $attempt->observations()
+                ->whereIn('question_group_id', $needObservation)
+                ->where('ends_at', '<=', $now)
+                ->pluck('question_group_id');
+
+        // Pemilik tiap opsi yang dikirim.
+        $optionOwner = QuestionOption::query()
+            ->whereIn('id', $items->pluck('o')->filter()->unique())
+            ->pluck('question_id', 'id');
+
+        $rows = [];
+        $rejected = [];
+
+        foreach ($items as $questionId => $item) {
+            $questionId = (int) $questionId;
+            $question = $questions->get($questionId);
+            $optionId = isset($item['o']) ? (int) $item['o'] : null;
+            $tMs = isset($item['t']) ? (int) $item['t'] : null;
+            $groupId = $question?->question_group_id;
+
+            $valid = $question !== null
+                && (! $needObservation->contains($groupId) || $observed->contains($groupId))
+                && ($optionId === null || (int) ($optionOwner[$optionId] ?? 0) === $questionId)
+                // Jawaban terlambat hanya sah bila dibuat sebelum tenggat.
+                && ($cutoffMs === null || ($tMs !== null && $tMs <= $cutoffMs));
+
+            if (! $valid) {
+                $rejected[] = $questionId;
+
+                continue;
+            }
+
+            $answeredAt = $tMs === null
+                ? $upper
+                : CarbonImmutable::createFromTimestampMs($tMs)->max($section->started_at)->min($upper);
+
+            $rows[] = [
+                'exam_attempt_id' => $attempt->id,
+                'question_id' => $questionId,
+                'question_option_id' => $optionId,
+                'answered_at' => $answeredAt->setTimezone(config('app.timezone')),
+            ];
+        }
+
+        return [$rows, $rejected];
+    }
+
     public function recordEvent(ExamAttempt $attempt, AttemptEventType $type, array $meta = []): void
     {
         $attempt = $this->sync($attempt);
@@ -333,7 +492,7 @@ class ExamEngine
 
     private function finishSection(ExamAttempt $attempt, AttemptSection $current, CarbonInterface $at, SubmitReason $reason): void
     {
-        $current->forceFill(['finished_at' => $at->min($current->deadline_at)])->save();
+        $current->forceFill(['finished_at' => $at->min($current->deadline_at), 'submit_reason' => $reason])->save();
 
         // Observasi yang masih berjalan di pilar ini ikut ditutup.
         $attempt->observations()->where('ends_at', '>', $at)->update(['ends_at' => $at]);
@@ -370,7 +529,7 @@ class ExamEngine
         $current = $attempt->status === AttemptStatus::InProgress ? $this->currentAttemptSection($attempt) : null;
 
         if ($current && ! $current->isFinished()) {
-            $current->forceFill(['finished_at' => $at->min($current->deadline_at)])->save();
+            $current->forceFill(['finished_at' => $at->min($current->deadline_at), 'submit_reason' => $reason])->save();
         }
 
         $attempt->observations()->where('ends_at', '>', $at)->update(['ends_at' => $at]);

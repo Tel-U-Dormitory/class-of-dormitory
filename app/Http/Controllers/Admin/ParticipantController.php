@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\ParticipantStatus;
 use App\Enums\SubmitReason;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreParticipantRequest;
 use App\Models\Building;
 use App\Models\ExamAttempt;
 use App\Models\Participant;
 use App\Services\Exam\ExamEngine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -18,6 +20,35 @@ use Inertia\Response;
 
 class ParticipantController extends Controller
 {
+    public function create(): Response
+    {
+        return Inertia::render('admin/participants/create', [
+            'buildings' => Building::orderBy('sort_order')->get(['id', 'name']),
+        ]);
+    }
+
+    public function store(StoreParticipantRequest $request): RedirectResponse
+    {
+        $data = $request->validated();
+
+        [$participant, $token] = DB::transaction(function () use ($data, $request) {
+            $participant = new Participant([
+                ...collect($data)->except(['photo'])->all(),
+                'status' => ParticipantStatus::Registered,
+                'photo_path' => $request->hasFile('photo') ? $request->file('photo')->store('participants', 'local') : null,
+            ]);
+            $participant->token_hash = ''; // kolom wajib terisi dulu, token asli dibuat di bawah
+            $participant->save();
+
+            return [$participant, $participant->issueToken()];
+        });
+
+        // Halaman detail peserta sudah bisa menampilkan token (sekali saja) lewat flash 'new_token'.
+        return to_route('admin.participants.show', $participant)
+            ->with('new_token', $token)
+            ->with('success', 'Akun peserta dibuat. Catat token-nya, hanya ditampilkan sekali.');
+    }
+
     public function index(Request $request): Response
     {
         $filters = $request->validate([

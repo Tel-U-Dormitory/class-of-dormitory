@@ -70,6 +70,9 @@ export default function ParticipantDashboard({ participant, exam, attempt }: Pro
                                 </div>
                             ))}
                         </dl>
+                        <Button asChild variant="outline" size="sm" className="mt-6 w-full">
+                            <Link href={route('participant.profile')}>{participant.photo_url ? 'Edit profil' : 'Lengkapi foto & prestasi'}</Link>
+                        </Button>
                     </CardContent>
                 </Card>
 

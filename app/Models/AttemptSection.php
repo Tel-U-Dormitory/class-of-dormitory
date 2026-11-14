@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Models;
-
+use App\Enums\SubmitReason;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -13,6 +13,7 @@ class AttemptSection extends Model
         'started_at',
         'deadline_at',
         'finished_at',
+        'submit_reason',
         'score',
         'correct_count',
         'wrong_count',
@@ -24,6 +25,7 @@ class AttemptSection extends Model
             'started_at' => 'datetime',
             'deadline_at' => 'datetime',
             'finished_at' => 'datetime',
+            'submit_reason' => SubmitReason::class,
         ];
     }
 

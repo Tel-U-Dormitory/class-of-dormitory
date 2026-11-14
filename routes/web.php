@@ -10,6 +10,7 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\PublicCastController;
 use App\Http\Controllers\Participant\AuthController;
 use App\Http\Controllers\Participant\DashboardController;
+use App\Http\Controllers\Participant\ProfileController;
 use App\Http\Controllers\Participant\RegistrationController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,6 +32,8 @@ Route::middleware(['auth:participant', 'participant.single-session'])->group(fun
     Route::post('keluar', [AuthController::class, 'destroy'])->name('participant.logout');
     Route::get('peserta', DashboardController::class)->name('participant.dashboard');
     Route::get('peserta/foto', [DashboardController::class, 'photo'])->name('participant.photo');
+    Route::get('peserta/profil', [ProfileController::class, 'edit'])->name('participant.profile');
+    Route::post('peserta/profil', [ProfileController::class, 'update'])->name('participant.profile.update');
 
     Route::prefix('ujian')->name('exam.')->group(function () {
         Route::get('/', [LobbyController::class, 'show'])->name('lobby');
@@ -46,6 +49,7 @@ Route::middleware(['auth:participant', 'participant.single-session'])->group(fun
         Route::post('jawaban/{question}', [AnswerController::class, 'store'])->middleware('throttle:exam-answer')->name('answer');
         Route::post('event', [AnswerController::class, 'event'])->middleware('throttle:exam-event')->name('event');
         Route::post('heartbeat', [AnswerController::class, 'heartbeat'])->middleware('throttle:exam-heartbeat')->name('heartbeat');
+        Route::post('sinkron', [AnswerController::class, 'checkpoint'])->middleware('throttle:exam-sync')->name('checkpoint');
 
         Route::get('media/stimulus/{group}', [MediaController::class, 'stimulus'])->name('media.stimulus');
         Route::get('media/slide/{group}/{index}', [MediaController::class, 'slide'])->whereNumber('index')->name('media.slide');
