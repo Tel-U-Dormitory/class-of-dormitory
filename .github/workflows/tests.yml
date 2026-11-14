@@ -2,7 +2,14 @@ name: checks
 
 on:
   push:
+    branches: [main]
   pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -10,6 +17,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       mysql:
         image: mysql:8.4
@@ -49,3 +57,88 @@ jobs:
       - run: npx eslint .
       - run: npm run build
       - run: php artisan test
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and load image for smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: cod:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test production image
+        shell: bash
+        run: |
+          docker run -d --name cod-smoke -p 127.0.0.1:8080:80 \
+            -e APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
+            -e LOG_CHANNEL=stderr cod:ci
+          trap 'docker logs cod-smoke; docker rm -f cod-smoke' EXIT
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8080/up >/dev/null; then break; fi
+            sleep 2
+          done
+          curl --fail http://127.0.0.1:8080/up
+          curl --fail --silent http://127.0.0.1:8080/build/manifest.json >/dev/null
+          docker exec cod-smoke test ! -e .env
+          docker exec cod-smoke test -s public/build/manifest.json
+          docker exec cod-smoke sh -c 'echo private > storage/app/private/smoke-secret.txt'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/storage/app/private/smoke-secret.txt)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/.env)" = 404
+
+  publish:
+    needs: image
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Image name
+        id: image
+        shell: bash
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish production image
+        id: publish
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image.outputs.name }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Package matching deployment configuration
+        env:
+          IMAGE: ${{ steps.image.outputs.name }}@${{ steps.publish.outputs.digest }}
+        run: |
+          printf '%s\n' "$IMAGE" > IMAGE.txt
+          tar -czf cod-deployment.tar.gz compose.production.yaml compose.mysql.yaml .env.production.example docs/DEPLOYMENT.md IMAGE.txt
+          printf '### Production image\n```text\n%s\n```\nDownload cod-deployment from this run for matching configuration.\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload deployment configuration
+        uses: actions/upload-artifact@v4
+        with:
+          name: cod-deployment
+          path: cod-deployment.tar.gz
+          retention-days: 90

@@ -4,6 +4,9 @@ Platform seleksi kognitif antar-asrama: pendaftaran peserta, ujian 4 pilar denga
 
 ## Stack
 
+Panduan production Resora (CI, GHCR, konfigurasi server, update, dan rollback):
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
+
 - Laravel 12, Inertia v2, React 19 + TypeScript, Tailwind v4, shadcn/ui
 - MySQL 8.4 (Docker `mysql`, database `cod_s3`; test memakai `cod_s3_testing`)
 - PHP 8.5 dengan ekstensi `pdo_mysql`, `mbstring`, `intl`, `gd`, `zip`, `bcmath`, `curl`
