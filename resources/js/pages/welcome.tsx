@@ -12,6 +12,8 @@ interface Props {
     pillars: { value: Pillar; label: string; description: string }[];
     result: { score_total: number; sections: { label: string; score: number }[] } | null;
     castOpen: boolean;
+    documentation: { id: number; caption: string | null; url: string }[];
+    documentationTitle: string;
 }
 
 const steps = [
@@ -21,8 +23,14 @@ const steps = [
     { title: 'Babak utama', body: 'Cast bertanding di chapter, challenge, dan deathmatch Season 3.' },
 ];
 
-export default function Welcome({ exam, pillars, result, castOpen }: Props) {
+export default function Welcome({ exam, pillars, result, castOpen, documentation, documentationTitle }: Props) {
     const { auth, registrationOpen } = usePage<SharedData>().props;
+
+    // Foto dari admin (maksimal 4 teratas); bila belum ada, pakai 4 foto bawaan.
+    const photos =
+        documentation.length > 0
+            ? documentation.map((d) => ({ key: d.id, src: d.url, alt: d.caption ?? 'Dokumentasi Clash of Dormitory' }))
+            : [1, 2, 3, 4].map((n) => ({ key: n, src: `/images/doc${n}.webp`, alt: `Dokumentasi Clash of Dormitory ${n}` }));
 
     return (
         <PublicLayout>
@@ -177,16 +185,10 @@ export default function Welcome({ exam, pillars, result, castOpen }: Props) {
             </section>
 
             <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-                <h2 className="font-display text-2xl font-bold sm:text-3xl">Dokumentasi season lalu</h2>
+                <h2 className="font-display text-2xl font-bold sm:text-3xl">{documentationTitle}</h2>
                 <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-                    {[1, 2, 3, 4].map((n) => (
-                        <img
-                            key={n}
-                            src={`/images/doc${n}.webp`}
-                            alt={`Dokumentasi Clash of Dormitory ${n}`}
-                            loading="lazy"
-                            className="aspect-[4/3] w-full rounded-lg border object-cover"
-                        />
+                    {photos.map((photo) => (
+                        <img key={photo.key} src={photo.src} alt={photo.alt} loading="lazy" className="aspect-[4/3] w-full rounded-lg border object-cover" />
                     ))}
                 </div>
             </section>

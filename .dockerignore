@@ -19,3 +19,5 @@ tests
 .aws
 .claude
 *.log
+.cod-deploy.lock
+backups

@@ -1,3 +1,5 @@
+# Host reverse proxy template. For NPM + shared Resora MySQL, see compose.resora.yaml.
+# Update using scripts/deploy.sh; migrations are not run on container restart.
 name: cod-production
 
 x-app: &app

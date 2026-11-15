@@ -190,3 +190,9 @@
         white-space: pre-line;
     }
 }
+
+/* Sembunyikan tombol mata bawaan Edge; diganti tombol mata di komponen Input. */
+input[type='password']::-ms-reveal,
+input[type='password']::-ms-clear {
+    display: none;
+}

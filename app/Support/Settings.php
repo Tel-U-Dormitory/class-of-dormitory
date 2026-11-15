@@ -15,6 +15,7 @@ class Settings
     private const DEFAULTS = [
         'registration_open' => true,
         'registration_closed_message' => 'Pendaftaran sedang ditutup. Pantau pengumuman panitia.',
+        'documentation_title' => 'Dokumentasi season lalu',
     ];
 
     public static function get(string $key): mixed

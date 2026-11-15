@@ -135,7 +135,7 @@ function BreakScreen({
 
     return (
         <div className="flex min-h-svh flex-col">
-            <header className="flex items-center justify-center border-b px-4 py-3">
+            <header className="bg-background/90 sticky top-0 z-30 flex items-center justify-center border-b px-4 py-3 backdrop-blur">
                 <PillarSteps sections={sections} />
             </header>
             <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">

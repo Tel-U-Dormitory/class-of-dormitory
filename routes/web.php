@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Arena\ArenaController;
+use App\Http\Controllers\DocumentationImageController;
 use App\Http\Controllers\Exam\AnswerController;
 use App\Http\Controllers\Exam\LobbyController;
 use App\Http\Controllers\Exam\MediaController;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', HomeController::class)->name('home');
 Route::get('/cast', [PublicCastController::class, 'show'])->name('cast.show');
 Route::get('/cast/foto/{participant}', [PublicCastController::class, 'photo'])->name('cast.photo');
+Route::get('/dokumentasi/{documentation}/gambar', DocumentationImageController::class)->name('documentation.image');
 
 // Peserta: pendaftaran & login (token).
 Route::middleware('guest:participant')->group(function () {

@@ -269,3 +269,16 @@ menghapus volume data. Simpan image/digest versi sebelumnya selama periode rollb
 - Laravel deployment: https://laravel.com/docs/12.x/deployment
 - Trusted proxies: https://laravel.com/docs/12.x/requests#configuring-trusted-proxies
 - Scheduler: https://laravel.com/docs/12.x/scheduling
+
+
+## untuk update di server
+1. cd /opt/cod
+2. nano compose.yaml
+3. Ganti nilai image: pada bagian x-app dengan referensi baru
+4. sudo docker compose config --quiet
+5. sudo docker compose pull app scheduler
+6. sudo docker compose up -d --force-recreate app scheduler
+7. sudo docker compose logs --tail=100 app scheduler
+
+## hapus image tak terpakai
+1. sudo docker image prune -a

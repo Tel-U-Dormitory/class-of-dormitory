@@ -36,6 +36,7 @@ yarn-error.log
 /.agents/
 /.aws/
 *.log
+.cod-deploy.lock
 
 # Local database files
 /database/*.sqlite
