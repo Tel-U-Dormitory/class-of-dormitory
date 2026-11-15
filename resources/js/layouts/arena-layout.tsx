@@ -19,7 +19,7 @@ export default function ArenaLayout({ children }: { children: React.ReactNode })
     return (
         <div className="dark relative isolate min-h-svh bg-[#070A0F] px-4 py-6 text-white select-none sm:px-6">
             <Embers className="-z-10 opacity-60" />
-            <header className="mb-6 flex items-center justify-between gap-4">
+            <header className="sticky top-0 z-30 -mx-4 mb-6 flex items-center justify-between gap-4 bg-[#070A0F]/80 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6">
                 <span className="w-9" />
                 <img src="/images/logo.webp" alt="Clash of Dormitory" className="h-12 drop-shadow-[0_0_12px_rgba(229,9,20,0.6)] sm:h-14" />
                 <button

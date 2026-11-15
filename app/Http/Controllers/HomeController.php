@@ -3,12 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Pillar;
+use App\Models\Documentation;
 use App\Models\ExamAttempt;
 use App\Services\Exam\CastSelectionService;
 use App\Support\CurrentExam;
+use App\Support\Settings;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+
 
 class HomeController extends Controller
 {
@@ -37,6 +41,18 @@ class HomeController extends Controller
             }
         }
 
+        // Foto dokumentasi: maksimal 4 teratas. Bila tabelnya belum ada (migration belum dijalankan),
+        // beranda tetap tampil dengan foto bawaan.
+        try {
+            $documentation = Documentation::ordered()->limit(Documentation::LANDING_LIMIT)->get()->map(fn (Documentation $d) => [
+                'id' => $d->id,
+                'caption' => $d->caption,
+                'url' => $d->imageUrl(),
+            ])->all();
+        } catch (QueryException) {
+            $documentation = [];
+        }
+
         return Inertia::render('welcome', [
             'exam' => $exam ? [
                 'title' => $exam->title,
@@ -51,6 +67,8 @@ class HomeController extends Controller
                 'description' => $p->description(),
             ]),
             'resultsPublished' => $published,
+            'documentation' => $documentation,
+            'documentationTitle' => Settings::get('documentation_title'),
             'result' => $result,
             // Pintasan cast tampil jika dipublikasikan dan sudah ada peserta yang selesai ujian
             'castOpen' => $published && $castService->ranked($exam)->isNotEmpty(),

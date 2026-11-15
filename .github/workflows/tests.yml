@@ -39,6 +39,10 @@ jobs:
       INERTIA_SSR_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
+      - name: Check deployment script
+        run: |
+          bash -n scripts/deploy.sh
+          bash tests/deploy.sh
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
@@ -134,7 +138,7 @@ jobs:
           IMAGE: ${{ steps.image.outputs.name }}@${{ steps.publish.outputs.digest }}
         run: |
           printf '%s\n' "$IMAGE" > IMAGE.txt
-          tar -czf cod-deployment.tar.gz compose.production.yaml compose.mysql.yaml .env.production.example docs/DEPLOYMENT.md IMAGE.txt
+          tar -czf cod-deployment.tar.gz compose.production.yaml compose.resora.yaml compose.mysql.yaml .env.production.example scripts/deploy.sh docs/DEPLOYMENT.md IMAGE.txt
           printf '### Production image\n```text\n%s\n```\nDownload cod-deployment from this run for matching configuration.\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload deployment configuration
         uses: actions/upload-artifact@v4

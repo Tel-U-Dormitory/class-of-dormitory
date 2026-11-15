@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\BracketController;
 use App\Http\Controllers\Admin\CastController;
 use App\Http\Controllers\Admin\ChallengeController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\DocumentationController;
 use App\Http\Controllers\Admin\ExamController;
 use App\Http\Controllers\Admin\MediaController;
 use App\Http\Controllers\Admin\MonitorController;
@@ -67,6 +68,13 @@ Route::middleware('auth')->group(function () {
             Route::post('panitia', [UserController::class, 'store'])->name('users.store');
             Route::put('panitia/{user}', [UserController::class, 'update'])->name('users.update');
             Route::delete('panitia/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+
+            Route::get('dokumentasi', [DocumentationController::class, 'index'])->name('documentation.index');
+            Route::post('dokumentasi', [DocumentationController::class, 'store'])->name('documentation.store');
+            Route::put('judul-dokumentasi', [DocumentationController::class, 'updateTitle'])->name('documentation.title');
+            Route::put('dokumentasi/{documentation}', [DocumentationController::class, 'update'])->name('documentation.update');
+            Route::patch('dokumentasi/{documentation}/geser', [DocumentationController::class, 'move'])->name('documentation.move');
+            Route::delete('dokumentasi/{documentation}', [DocumentationController::class, 'destroy'])->name('documentation.destroy');
 
             Route::post('ujian/{exam}/tetapkan-cast', [CastController::class, 'apply'])->name('exams.cast.apply');
             Route::patch('ujian/{exam}/attempt/{attempt}/spesialis', [ResultController::class, 'specialist'])->name('attempts.specialist');
