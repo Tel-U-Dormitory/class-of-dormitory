@@ -70,6 +70,59 @@ class SubmitAnswersTest extends TestCase
         return ['q' => $q->id, 'o' => $option, 't' => $t ?? now()->getTimestampMs()];
     }
 
+    public function test_matching_manual_submit_retry_is_acknowledged_without_advancing_again(): void
+    {
+        $this->observeMemory();
+        $q = $this->questionsOf(1)->first();
+        $payload = ['section_id' => $this->sectionId(1), 'answers' => [$this->item($q, $this->correct($q))], 'finish' => true];
+        $this->postJson(route('exam.checkpoint'), $payload)->assertOk();
+        $nextSection = $this->attempt()->current_section_id;
+        $this->postJson(route('exam.checkpoint'), $payload)->assertOk()->assertJson(['accepted' => 1, 'rejected' => []]);
+        $this->assertSame($nextSection, $this->attempt()->current_section_id);
+        $payload['answers'][0]['o'] = $this->wrong($q);
+        $this->postJson(route('exam.checkpoint'), $payload)->assertStatus(422);
+        $this->assertSame($this->correct($q), $this->attempt()->answers()->first()->question_option_id);
+    }
+
+    public function test_partial_rejection_does_not_finish_the_section(): void
+    {
+        $this->observeMemory();
+        $q = $this->questionsOf(1)->first();
+        $this->postJson(route('exam.checkpoint'), [
+            'section_id' => $this->sectionId(1), 'finish' => true,
+            'answers' => [$this->item($q, $this->correct($q)), ['q' => 999999, 'o' => null]],
+        ])->assertOk()->assertJson(['accepted' => 1, 'rejected' => [999999]]);
+        $this->assertSame(AttemptStatus::InProgress, $this->attempt()->status);
+        $this->assertNull($this->attempt()->sections()->first()->finished_at);
+    }
+
+    public function test_heartbeat_includes_an_extended_deadline(): void
+    {
+        app(\App\Services\Exam\ExamEngine::class)->extendCurrentSection($this->attempt(), 300);
+        $deadline = $this->attempt()->sections()->first()->deadline_at->getTimestampMs();
+        $this->postJson(route('exam.heartbeat'))->assertOk()->assertJson(['deadline_at' => $deadline]);
+    }
+
+    public function test_scoring_writes_answers_in_one_batch_and_preserves_scoring_rules(): void
+    {
+        $this->observeMemory();
+        [$q1, $q2, $q3] = $this->questionsOf(1);
+        $this->postJson(route('exam.checkpoint'), [
+            'section_id' => $this->sectionId(1),
+            'answers' => [$this->item($q1, $this->correct($q1)), $this->item($q2, $this->wrong($q2)), $this->item($q3, null)],
+        ])->assertOk();
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        app(\App\Services\Exam\ScoringService::class)->score($this->attempt());
+        $writes = collect(\Illuminate\Support\Facades\DB::getQueryLog())->filter(fn ($query) =>
+            str_starts_with($query['query'], 'insert into `attempt_answers`') || str_starts_with($query['query'], 'update `attempt_answers`'));
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+        $this->assertCount(1, $writes);
+        $this->assertSame(3, $this->attempt()->score_total);
+        $this->assertSame(1, $this->attempt()->correct_count);
+        $this->assertSame(1, $this->attempt()->wrong_count);
+        $this->assertNull($this->attempt()->answers()->where('question_id', $q3->id)->first()->is_correct);
+    }
+
     public function test_checkpoint_saves_many_answers_in_one_request(): void
     {
         $this->observeMemory();

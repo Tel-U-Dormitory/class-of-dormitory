@@ -54,6 +54,9 @@ class AnswerController extends Controller
         return response()->json([
             'status' => $attempt->status->value,
             'section_id' => $attempt->current_section_id,
+            'deadline_at' => $attempt->status === AttemptStatus::InProgress
+                ? $attempt->sections()->where('exam_section_id', $attempt->current_section_id)->first()?->deadline_at?->getTimestampMs()
+                : null,
             'server_now' => now()->getTimestampMs(),
         ]);
     }

@@ -58,6 +58,7 @@ jobs:
       - run: composer install --no-interaction --prefer-dist --optimize-autoloader
       - run: php artisan key:generate
       - run: npm ci
+      - run: node --experimental-strip-types tests/submission.mjs
       - run: npx eslint .
       - run: npm run build
       - run: php artisan test
@@ -92,6 +93,17 @@ jobs:
           done
           curl --fail http://127.0.0.1:8080/up
           curl --fail --silent http://127.0.0.1:8080/build/manifest.json >/dev/null
+          docker exec cod-smoke php -r '
+            require "vendor/autoload.php";
+            $app = require "bootstrap/app.php";
+            $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+            config(["session.driver" => "array", "cache.default" => "array", "inertia.ssr.enabled" => false]);
+            Illuminate\Support\Facades\Cache::forever("app-settings", ["registration_open" => true]);
+            Illuminate\Support\Facades\Route::get("/__smoke", fn () => Inertia\Inertia::render("admin/exams/edit", []))->middleware("web");
+            $response = $app->make(Illuminate\Contracts\Http\Kernel::class)->handle(Illuminate\Http\Request::create("http://localhost/__smoke"));
+            exit($response->getStatusCode() === 200 && !$response->headers->has("Link") && strlen((string) $response->headers) < 4096 ? 0 : 1);
+          '
+          docker exec cod-smoke apache2ctl -t
           docker exec cod-smoke test ! -e .env
           docker exec cod-smoke test -s public/build/manifest.json
           docker exec cod-smoke sh -c 'echo private > storage/app/private/smoke-secret.txt'

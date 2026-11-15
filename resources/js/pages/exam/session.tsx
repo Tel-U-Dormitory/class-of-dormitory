@@ -35,9 +35,9 @@ export default function ExamSession(props: SessionProps) {
     // Heartbeat: deteksi perubahan dari sisi admin (tambah waktu, dihentikan).
     useEffect(() => {
         const id = window.setInterval(() => {
-            postJson<{ status: string; section_id: number | null }>(route('exam.heartbeat'))
+            postJson<{ status: string; section_id: number | null; deadline_at: number | null }>(route('exam.heartbeat'))
                 .then((res) => {
-                    if (res.status !== props.attempt.status || (current && res.section_id !== current.section_id)) refresh();
+                    if (res.status !== props.attempt.status || (current && (res.section_id !== current.section_id || res.deadline_at !== current.deadline_at))) refresh();
                 })
                 .catch(() => {});
         }, 30000);

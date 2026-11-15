@@ -48,9 +48,9 @@ class CastSelectionService
     /**
      * @return array{global: Collection<int, ExamAttempt>, buildings: Collection<int, Collection<int, ExamAttempt>>}
      */
-    public function select(Exam $exam): array
+    public function select(Exam $exam, ?Collection $ranked = null): array
     {
-        $ranked = $this->ranked($exam);
+        $ranked ??= $this->ranked($exam);
         $global = $ranked->take($this->globalKeep())->values();
         $rest = $ranked->slice($this->globalKeep());
 

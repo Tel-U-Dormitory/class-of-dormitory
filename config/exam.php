@@ -17,7 +17,7 @@ return [
     'max_answers_per_sync' => 500,
 
     // Interval (detik) polling monitor admin.
-    'monitor_poll_seconds' => 5,
+    'monitor_poll_seconds' => (int) env('EXAM_MONITOR_POLL_SECONDS', 10),
 
     'default_section_seconds' => 30 * 60,
 
