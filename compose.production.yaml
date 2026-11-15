@@ -19,12 +19,16 @@ x-app: &app
 services:
   app:
     <<: *app
+    mem_limit: 256m
+    memswap_limit: 384m
     ports:
       - "127.0.0.1:${APP_PORT:-8080}:80"
     stop_grace_period: 30s
 
   scheduler:
     <<: *app
+    mem_limit: 128m
+    memswap_limit: 192m
     command: ["php", "artisan", "schedule:work"]
     healthcheck:
       disable: true

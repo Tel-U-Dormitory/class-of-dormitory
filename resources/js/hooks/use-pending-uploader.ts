@@ -1,5 +1,6 @@
 import { deleteRecord, listLocked, type SectionRecord } from '@/lib/answer-store';
 import { HttpError, postJson } from '@/lib/http';
+import { fullyAccepted } from '@/lib/submission';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type UploadStatus = 'idle' | 'sending' | 'waiting' | 'auth' | 'rejected';
@@ -13,10 +14,10 @@ function toPayload(record: SectionRecord) {
         .map(([questionId, entry]) => ({ q: Number(questionId), o: entry.o, t: entry.t }));
 }
 
-function classify(error: unknown): 'auth' | 'retry' | 'invalid' | 'drop' {
+function classify(error: unknown): 'auth' | 'retry' | 'invalid' {
     if (!(error instanceof HttpError)) return 'retry'; // putus jaringan / fetch gagal
     if (error.status === 401 || error.status === 419) return 'auth';
-    if (error.status === 422) return (error.data as { errors?: unknown } | null)?.errors ? 'invalid' : 'drop';
+    if ([403, 404, 422].includes(error.status)) return 'invalid';
 
     return 'retry'; // 429, 5xx, dan lainnya
 }
@@ -61,7 +62,12 @@ export function usePendingUploader(attemptId: number, onUploaded: () => void) {
                 setStatus('sending');
 
                 try {
-                    await postJson(route('exam.checkpoint'), { section_id: next.sectionId, answers: toPayload(next), finish: true });
+                    const answers = toPayload(next);
+                    const receipt = await postJson(route('exam.checkpoint'), { section_id: next.sectionId, answers, finish: true });
+                    if (!fullyAccepted(receipt, answers.length)) {
+                        setStatus('rejected');
+                        return; // Keep the local snapshot for recovery, including partial acceptance.
+                    }
                 } catch (error) {
                     const outcome = classify(error);
 
@@ -83,8 +89,6 @@ export function usePendingUploader(attemptId: number, onUploaded: () => void) {
 
                         return;
                     }
-                    // 'drop': server menolak berdasarkan aturan ujian (jendela terlambat habis, pilar terkunci);
-                    // mengulang tidak ada gunanya, lanjut hapus catatan dan muat ulang status dari server.
                 }
 
                 await deleteRecord(next.attemptId, next.sectionId);

@@ -19,17 +19,26 @@ class ScoringService
             ->get();
 
         $perSection = [];
+        $scored = [];
 
         foreach ($answers as $answer) {
             [$isCorrect, $score] = $this->scoreAnswer($answer);
 
-            $answer->forceFill(['is_correct' => $isCorrect, 'score' => $score])->save();
+            $scored[] = array_merge($answer->getAttributes(), [
+                'is_correct' => $isCorrect,
+                'score' => $score,
+                'updated_at' => now(),
+            ]);
 
             $sectionId = $answer->question->group->exam_section_id;
             $perSection[$sectionId] ??= ['score' => 0, 'correct' => 0, 'wrong' => 0];
             $perSection[$sectionId]['score'] += $score;
             $perSection[$sectionId]['correct'] += $isCorrect === true ? 1 : 0;
             $perSection[$sectionId]['wrong'] += $isCorrect === false ? 1 : 0;
+        }
+
+        foreach (array_chunk($scored, 250) as $chunk) {
+            AttemptAnswer::upsert($chunk, ['exam_attempt_id', 'question_id'], ['is_correct', 'score', 'updated_at']);
         }
 
         $duration = 0;

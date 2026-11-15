@@ -26,11 +26,12 @@ class ResultController extends Controller
         $building = $request->integer('building') ?: null;
 
         // Pratinjau aturan cast agar panitia bisa memeriksa sebelum menetapkan.
-        ['global' => $global, 'buildings' => $buildings] = $this->cast->select($exam);
+        $ranked = $this->cast->ranked($exam);
+        ['global' => $global, 'buildings' => $buildings] = $this->cast->select($exam, $ranked);
         $preview = $global->mapWithKeys(fn ($a) => [$a->id => 'global'])
             ->union($buildings->flatten(1)->mapWithKeys(fn ($a) => [$a->id => 'building']));
 
-        $rows = $this->ranked($exam)->map(fn (array $row) => [...$row, 'cast_preview' => $preview->get($row['attempt_id'])]);
+        $rows = $this->ranked($exam, $ranked)->map(fn (array $row) => [...$row, 'cast_preview' => $preview->get($row['attempt_id'])]);
 
         return Inertia::render('admin/exams/results', [
             'exam' => [
@@ -88,9 +89,9 @@ class ResultController extends Controller
     /**
      * Urutan: skor total tertinggi, lalu durasi pengerjaan tersingkat. Peserta didiskualifikasi tidak diperingkat.
      */
-    private function ranked(Exam $exam): Collection
+    private function ranked(Exam $exam, ?Collection $ranked = null): Collection
     {
-        $rows = $this->cast->ranked($exam)
+        $rows = ($ranked ?? $this->cast->ranked($exam))
             ->values()
             ->map(fn (ExamAttempt $a, int $i) => [
                 'attempt_id' => $a->id,

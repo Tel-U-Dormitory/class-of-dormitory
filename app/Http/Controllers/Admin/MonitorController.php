@@ -21,14 +21,6 @@ class MonitorController extends Controller
 
         // Transisi peserta offline diproses scheduler (exam:sync-attempts tiap menit), bukan di sini,
         // agar polling monitor tetap ringan saat ratusan peserta aktif.
-        $questionCounts = Question::query()
-            ->join('question_groups', 'question_groups.id', '=', 'questions.question_group_id')
-            ->where('questions.is_active', true)
-            ->whereIn('question_groups.exam_section_id', $exam->sections->pluck('id'))
-            ->selectRaw('question_groups.exam_section_id as section_id, count(*) as total')
-            ->groupBy('question_groups.exam_section_id')
-            ->pluck('total', 'section_id');
-
         $attempts = ExamAttempt::query()
             ->where('exam_id', $exam->id)
             ->with(['participant:id,full_name,nim,building_id', 'participant.building:id,name', 'sections'])
@@ -62,13 +54,17 @@ class MonitorController extends Controller
             });
 
         return Inertia::render('admin/exams/monitor', [
-            'exam' => [
+            'exam' => fn () => [
                 'id' => $exam->id,
                 'title' => $exam->title,
                 'status' => $exam->status->value,
                 'status_label' => $exam->status->label(),
                 'sections' => $exam->sections->map(fn ($s) => ['id' => $s->id, 'label' => $s->label()]),
-                'total_questions' => (int) $questionCounts->sum(),
+                'total_questions' => Question::query()
+                    ->join('question_groups', 'question_groups.id', '=', 'questions.question_group_id')
+                    ->where('questions.is_active', true)
+                    ->whereIn('question_groups.exam_section_id', $exam->sections->pluck('id'))
+                    ->count(),
             ],
             'attempts' => $attempts,
             'serverNow' => now()->getTimestampMs(),

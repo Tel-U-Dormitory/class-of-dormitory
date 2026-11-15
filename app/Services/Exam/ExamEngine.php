@@ -274,6 +274,25 @@ class ExamEngine
                 ->where('exam_section_id', $sectionId)
                 ->first() ?? throw ExamException::sectionLocked();
 
+            // A committed response may be lost in transit. A matching retry must not
+            // finish the next section, change answers, or trigger another scoring run.
+            if ($finish && $attemptSection->finished_at !== null && $attemptSection->submit_reason === SubmitReason::Manual) {
+                $itemsByQuestion = collect($items)->keyBy('q');
+                $stored = $attempt->answers()
+                    ->whereIn('question_id', $itemsByQuestion->keys())
+                    ->whereHas('question.group', fn ($query) => $query->where('exam_section_id', $sectionId))
+                    ->pluck('question_option_id', 'question_id');
+
+                foreach ($itemsByQuestion as $questionId => $item) {
+                    $optionId = isset($item['o']) ? (int) $item['o'] : null;
+                    if (! $stored->has($questionId) || $stored->get($questionId) !== $optionId) {
+                        throw ExamException::sectionLocked();
+                    }
+                }
+
+                return ['attempt' => $attempt, 'accepted' => $itemsByQuestion->count(), 'rejected' => []];
+            }
+
             $late = $this->answersAreLate($attempt, $attemptSection, $now);
 
             [$rows, $rejected] = $this->buildAnswerRows($attempt, $attemptSection, $items, $now, $late);
@@ -290,7 +309,7 @@ class ExamEngine
                     // Ujian sudah terlanjur dinilai tanpa jawaban ini: nilai ulang (idempoten).
                     $this->scoring->score($attempt->fresh(['sections']));
                 }
-            } elseif ($finish) {
+            } elseif ($finish && $rejected === []) {
                 $this->assertInProgress($attempt);
                 $this->finishSection($attempt, $attemptSection, $now, SubmitReason::Manual);
             }

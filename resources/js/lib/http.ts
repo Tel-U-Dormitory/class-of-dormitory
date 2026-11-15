@@ -21,6 +21,7 @@ export async function postJson<T = unknown>(url: string, body: Record<string, un
     const response = await fetch(url, {
         method: 'POST',
         credentials: 'same-origin',
+        signal: AbortSignal.timeout(30000),
         headers: {
             'Content-Type': 'application/json',
             Accept: 'application/json',

@@ -27,6 +27,7 @@ ENV APP_ENV=production APP_DEBUG=false INERTIA_SSR_ENABLED=false
 COPY --from=dependencies /var/www/html /var/www/html
 COPY --from=frontend /app/public/build ./public/build
 COPY docker/apache.conf /etc/apache2/sites-available/000-default.conf
+COPY docker/mpm_prefork.conf /etc/apache2/mods-available/mpm_prefork.conf
 COPY docker/php.ini /usr/local/etc/php/conf.d/production.ini
 COPY docker/entrypoint.sh /usr/local/bin/cod-entrypoint
 RUN a2enmod rewrite \
