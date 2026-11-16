@@ -1,3 +1,4 @@
+import { ConfirmationProvider } from '@/components/confirmation-provider';
 import '../css/app.css';
 
 import { createInertiaApp } from '@inertiajs/react';
@@ -18,7 +19,11 @@ createInertiaApp({
     setup({ el, App, props }) {
         const root = createRoot(el);
 
-        root.render(<App {...props} />);
+        root.render(
+            <ConfirmationProvider>
+                <App {...props} />
+            </ConfirmationProvider>,
+        );
     },
     progress: {
         color: '#4B5563',

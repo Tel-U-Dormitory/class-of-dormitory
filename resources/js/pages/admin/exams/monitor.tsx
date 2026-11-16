@@ -1,9 +1,17 @@
+import { useConfirmation } from '@/components/confirmation-provider';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { useServerClock } from '@/hooks/use-server-clock';
 import AppLayout from '@/layouts/app-layout';
@@ -38,6 +46,7 @@ interface Props {
 }
 
 export default function Monitor({ exam, attempts, serverNow, pollSeconds }: Props) {
+    const { promptMinutes, confirm } = useConfirmation();
     usePoll(pollSeconds * 1000, { only: ['attempts', 'serverNow'] });
     const now = useServerClock(serverNow, 1000);
     const { auth } = usePage<SharedData>().props;
@@ -50,7 +59,11 @@ export default function Monitor({ exam, attempts, serverNow, pollSeconds }: Prop
         () =>
             attempts.filter((a) => {
                 const q = search.toLowerCase();
-                const matches = !q || a.participant.full_name.toLowerCase().includes(q) || a.participant.nim.includes(q) || a.participant.building.toLowerCase().includes(q);
+                const matches =
+                    !q ||
+                    a.participant.full_name.toLowerCase().includes(q) ||
+                    a.participant.nim.includes(q) ||
+                    a.participant.building.toLowerCase().includes(q);
                 const status =
                     filter === 'all' ||
                     (filter === 'active' && a.status !== 'submitted') ||
@@ -68,12 +81,12 @@ export default function Monitor({ exam, attempts, serverNow, pollSeconds }: Prop
         flagged: attempts.filter((a) => a.tab_switch_count >= 3).length,
     };
 
-    const extend = (a: AttemptRow) => {
-        const minutes = Number(prompt(`Tambah waktu pilar ${a.current_section} untuk ${a.participant.full_name} (menit):`, '5'));
-        if (minutes > 0) router.post(route('admin.attempts.extend', [exam.id, a.id]), { minutes }, { preserveScroll: true });
+    const extend = async (a: AttemptRow) => {
+        const minutes = await promptMinutes(`Tambah waktu pilar ${a.current_section} untuk ${a.participant.full_name} (menit):`);
+        if (minutes !== null && minutes > 0) router.post(route('admin.attempts.extend', [exam.id, a.id]), { minutes }, { preserveScroll: true });
     };
-    const forceSubmit = (a: AttemptRow) => {
-        if (confirm(`Hentikan ujian ${a.participant.full_name}? Jawaban yang ada langsung dinilai.`)) {
+    const forceSubmit = async (a: AttemptRow) => {
+        if (await confirm(`Hentikan ujian ${a.participant.full_name}? Jawaban yang ada langsung dinilai.`)) {
             router.post(route('admin.attempts.force-submit', [exam.id, a.id]), {}, { preserveScroll: true });
         }
     };
@@ -107,7 +120,12 @@ export default function Monitor({ exam, attempts, serverNow, pollSeconds }: Prop
                     <StatCard label="Sedang mengerjakan" value={counts.active} icon={Activity} />
                     <StatCard label="Sedang jeda" value={counts.break} icon={Coffee} />
                     <StatCard label="Selesai" value={counts.submitted} icon={CheckCircle2} />
-                    <StatCard label="Pindah tab ≥ 3×" value={counts.flagged} icon={Eye} className={counts.flagged > 0 ? 'border-destructive/40' : ''} />
+                    <StatCard
+                        label="Pindah tab ≥ 3×"
+                        value={counts.flagged}
+                        icon={Eye}
+                        className={counts.flagged > 0 ? 'border-destructive/40' : ''}
+                    />
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -147,7 +165,12 @@ export default function Monitor({ exam, attempts, serverNow, pollSeconds }: Prop
                     <tbody>
                         {rows.length === 0 && <EmptyRow colSpan={8}>Belum ada peserta yang memulai ujian.</EmptyRow>}
                         {rows.map((a) => {
-                            const timeLeft = a.status === 'in_progress' && a.deadline_at ? (a.deadline_at - now) / 1000 : a.status === 'on_break' && a.break_ends_at ? (a.break_ends_at - now) / 1000 : null;
+                            const timeLeft =
+                                a.status === 'in_progress' && a.deadline_at
+                                    ? (a.deadline_at - now) / 1000
+                                    : a.status === 'on_break' && a.break_ends_at
+                                      ? (a.break_ends_at - now) / 1000
+                                      : null;
                             const stale = a.status !== 'submitted' && a.last_seen_at && now - a.last_seen_at > 90_000;
                             return (
                                 <Tr key={a.id}>
@@ -173,18 +196,25 @@ export default function Monitor({ exam, attempts, serverNow, pollSeconds }: Prop
                                                     <span
                                                         key={s.id}
                                                         title={s.label}
-                                                        className={cn('h-1.5 w-6 rounded-full', done ? 'bg-emerald-500' : currentSection ? 'bg-primary' : 'bg-muted')}
+                                                        className={cn(
+                                                            'h-1.5 w-6 rounded-full',
+                                                            done ? 'bg-emerald-500' : currentSection ? 'bg-primary' : 'bg-muted',
+                                                        )}
                                                     />
                                                 );
                                             })}
                                         </div>
-                                        <p className="text-muted-foreground mt-1 text-xs">{a.status === 'submitted' ? 'Selesai' : (a.current_section ?? '—')}</p>
+                                        <p className="text-muted-foreground mt-1 text-xs">
+                                            {a.status === 'submitted' ? 'Selesai' : (a.current_section ?? '—')}
+                                        </p>
                                     </Td>
                                     <Td className="text-right font-mono tabular-nums">{timeLeft !== null ? formatClock(timeLeft) : '—'}</Td>
                                     <Td className="text-right tabular-nums">
                                         {a.answered_count}/{exam.total_questions}
                                     </Td>
-                                    <Td className={cn('text-right tabular-nums', a.tab_switch_count >= 3 && 'text-destructive font-semibold')}>{a.tab_switch_count}</Td>
+                                    <Td className={cn('text-right tabular-nums', a.tab_switch_count >= 3 && 'text-destructive font-semibold')}>
+                                        {a.tab_switch_count}
+                                    </Td>
                                     <Td className={cn('text-xs', stale ? 'text-amber-600 dark:text-amber-400' : 'text-muted-foreground')}>
                                         {formatRelative(a.last_seen_at, now)}
                                     </Td>

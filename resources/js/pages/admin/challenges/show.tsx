@@ -1,5 +1,6 @@
 import { ChallengeFormFields, type ChallengeFormData } from '@/components/admin/challenge-form';
 import { type ChallengeSummary, type GameTypeOption } from '@/components/admin/challenge-types';
+import { useConfirmation } from '@/components/confirmation-provider';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@/components/data-table';
 import InputError from '@/components/input-error';
 import { NativeSelect } from '@/components/native-select';
@@ -38,7 +39,13 @@ interface Candidate {
 }
 
 interface Props {
-    challenge: ChallengeSummary & { answer_key: string; description: string | null; opened_at: number | null; processed_at: string | null; has_invites: boolean };
+    challenge: ChallengeSummary & {
+        answer_key: string;
+        description: string | null;
+        opened_at: number | null;
+        processed_at: string | null;
+        has_invites: boolean;
+    };
     leaderboard: LeaderRow[];
     recentSubmissions: { id: number; entrant: string | null; answer: string; is_correct: boolean; elapsed_ms: number }[];
     teams: { id: number; name: string; member_ids: number[]; members: string[] }[];
@@ -73,8 +80,12 @@ export default function ChallengeShow(props: Props) {
                     title={challenge.title}
                     description={
                         <span className="flex flex-wrap items-center gap-2">
-                            <StatusBadge status={challenge.status === 'active' ? 'open' : challenge.status === 'ended' ? 'closed' : 'draft'} label={challenge.status_label} />
-                            Chapter {challenge.chapter} · {challenge.game_type_label} · {challenge.competition_mode === 'team' ? 'Kelompok' : 'Individu'}
+                            <StatusBadge
+                                status={challenge.status === 'active' ? 'open' : challenge.status === 'ended' ? 'closed' : 'draft'}
+                                label={challenge.status_label}
+                            />
+                            Chapter {challenge.chapter} · {challenge.game_type_label} ·{' '}
+                            {challenge.competition_mode === 'team' ? 'Kelompok' : 'Individu'}
                             {challenge.is_deathmatch && ' · Deathmatch'}
                         </span>
                     }
@@ -134,6 +145,7 @@ export default function ChallengeShow(props: Props) {
 }
 
 function Board({ challenge, leaderboard, recentSubmissions, serverNow }: Props) {
+    const { confirm } = useConfirmation();
     const now = useServerClock(serverNow, 100);
     const elapsed = challenge.opened_at ? now - challenge.opened_at : null;
     const form = useForm({ max_winners: challenge.max_winners, failed_status: challenge.is_deathmatch ? 'eliminated' : 'deathmatch' });
@@ -205,20 +217,34 @@ function Board({ challenge, leaderboard, recentSubmissions, serverNow }: Props) 
                     <CardContent>
                         <form
                             className="grid gap-4"
-                            onSubmit={(e) => {
+                            onSubmit={async (e) => {
                                 e.preventDefault();
-                                if (confirm(`Proses bracket? ${form.data.max_winners} tercepat lolos, sisa roster menjadi ${form.data.failed_status === 'deathmatch' ? 'Deathmatch' : 'Tereliminasi'}.`)) {
+                                if (
+                                    await confirm(
+                                        `Proses bracket? ${form.data.max_winners} tercepat lolos, sisa roster menjadi ${form.data.failed_status === 'deathmatch' ? 'Deathmatch' : 'Tereliminasi'}.`,
+                                    )
+                                ) {
                                     form.post(route('admin.challenges.bracket', challenge.code), { preserveScroll: true });
                                 }
                             }}
                         >
                             <div className="grid gap-2">
                                 <Label htmlFor="b-winners">Kuota lolos</Label>
-                                <Input id="b-winners" type="number" min={1} value={form.data.max_winners} onChange={(e) => form.setData('max_winners', Number(e.target.value))} />
+                                <Input
+                                    id="b-winners"
+                                    type="number"
+                                    min={1}
+                                    value={form.data.max_winners}
+                                    onChange={(e) => form.setData('max_winners', Number(e.target.value))}
+                                />
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="b-failed">Sisa peserta menjadi</Label>
-                                <NativeSelect id="b-failed" value={form.data.failed_status} onChange={(e) => form.setData('failed_status', e.target.value)}>
+                                <NativeSelect
+                                    id="b-failed"
+                                    value={form.data.failed_status}
+                                    onChange={(e) => form.setData('failed_status', e.target.value)}
+                                >
                                     <option value="deathmatch">Deathmatch</option>
                                     <option value="eliminated">Tereliminasi</option>
                                 </NativeSelect>
@@ -226,7 +252,9 @@ function Board({ challenge, leaderboard, recentSubmissions, serverNow }: Props) 
                             <Button type="submit" disabled={form.processing || challenge.status === 'active'}>
                                 Proses bracket
                             </Button>
-                            {challenge.status === 'active' && <p className="text-muted-foreground text-xs">Tutup game terlebih dahulu sebelum memproses bracket.</p>}
+                            {challenge.status === 'active' && (
+                                <p className="text-muted-foreground text-xs">Tutup game terlebih dahulu sebelum memproses bracket.</p>
+                            )}
                         </form>
                     </CardContent>
                 </Card>
@@ -239,7 +267,11 @@ function Board({ challenge, leaderboard, recentSubmissions, serverNow }: Props) 
                         {recentSubmissions.length === 0 && <p className="text-muted-foreground text-sm">Belum ada jawaban.</p>}
                         {recentSubmissions.map((s) => (
                             <div key={s.id} className="flex items-start gap-2 text-sm">
-                                {s.is_correct ? <Check className="mt-0.5 size-4 shrink-0 text-emerald-500" /> : <X className="text-destructive mt-0.5 size-4 shrink-0" />}
+                                {s.is_correct ? (
+                                    <Check className="mt-0.5 size-4 shrink-0 text-emerald-500" />
+                                ) : (
+                                    <X className="text-destructive mt-0.5 size-4 shrink-0" />
+                                )}
                                 <div className="min-w-0 flex-1">
                                     <p className="truncate font-medium">{s.entrant}</p>
                                     <p className="text-muted-foreground truncate font-mono text-xs">{s.answer}</p>
@@ -259,7 +291,8 @@ function useCandidateFilter(candidates: Candidate[]) {
     const [building, setBuilding] = useState('');
     const buildings = useMemo(() => [...new Set(candidates.map((c) => c.building))], [candidates]);
     const visible = candidates.filter(
-        (c) => (!building || c.building === building) && (!search || c.full_name.toLowerCase().includes(search.toLowerCase()) || c.nim.includes(search)),
+        (c) =>
+            (!building || c.building === building) && (!search || c.full_name.toLowerCase().includes(search.toLowerCase()) || c.nim.includes(search)),
     );
 
     const controls = (
@@ -284,7 +317,13 @@ function CandidateGrid({ candidates, selected, onToggle }: { candidates: Candida
     return (
         <div className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
             {candidates.map((c) => (
-                <label key={c.id} className={cn('flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm', selected.has(c.id) && 'border-primary/60 bg-primary/5')}>
+                <label
+                    key={c.id}
+                    className={cn(
+                        'flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm',
+                        selected.has(c.id) && 'border-primary/60 bg-primary/5',
+                    )}
+                >
                     <Checkbox checked={selected.has(c.id)} onCheckedChange={() => onToggle(c.id)} className="mt-0.5" />
                     <span className="min-w-0">
                         <span className="block truncate font-medium">{c.full_name}</span>
@@ -300,12 +339,17 @@ function CandidateGrid({ candidates, selected, onToggle }: { candidates: Candida
 }
 
 function Roster({ challenge, rosterIds, candidates }: Props) {
+    const { confirm } = useConfirmation();
     const [selected, setSelected] = useState<Set<number>>(() => new Set(challenge.has_invites ? rosterIds : []));
     const { visible, controls } = useCandidateFilter(candidates);
     const toggle = (id: number) => setSelected((s) => (s.has(id) ? new Set([...s].filter((x) => x !== id)) : new Set([...s, id])));
 
     const save = (mode: 'individual' | 'team') =>
-        router.put(route('admin.challenges.roster', challenge.code), { competition_mode: mode, participant_ids: mode === 'team' ? [] : [...selected] }, { preserveScroll: true });
+        router.put(
+            route('admin.challenges.roster', challenge.code),
+            { competition_mode: mode, participant_ids: mode === 'team' ? [] : [...selected] },
+            { preserveScroll: true },
+        );
 
     return (
         <Card>
@@ -314,11 +358,12 @@ function Roster({ challenge, rosterIds, candidates }: Props) {
                     <CardTitle className="text-base">Roster individu</CardTitle>
                     <CardDescription className="mt-1 max-w-2xl">
                         Jika tidak ada yang dicentang, roster otomatis berisi peserta yang masih bertanding
-                        {challenge.is_deathmatch ? ' berstatus Deathmatch' : ' (Cast, Lolos babak, Deathmatch)'}. Saat ini {rosterIds.length} peserta di roster.
+                        {challenge.is_deathmatch ? ' berstatus Deathmatch' : ' (Cast, Lolos babak, Deathmatch)'}. Saat ini {rosterIds.length} peserta
+                        di roster.
                     </CardDescription>
                 </div>
                 <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => confirm('Ubah game ini ke mode kelompok?') && save('team')}>
+                    <Button variant="outline" onClick={async () => (await confirm('Ubah game ini ke mode kelompok?')) && save('team')}>
                         Ubah ke mode kelompok
                     </Button>
                     <Button onClick={() => save('individual')}>Simpan roster ({selected.size})</Button>
@@ -341,6 +386,7 @@ function Roster({ challenge, rosterIds, candidates }: Props) {
 }
 
 function Teams({ challenge, teams, candidates }: Props) {
+    const { confirm } = useConfirmation();
     const [editing, setEditing] = useState<{ id: number | null; name: string; members: Set<number> } | null>(null);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const { visible, controls } = useCandidateFilter(candidates);
@@ -364,9 +410,13 @@ function Teams({ challenge, teams, candidates }: Props) {
                 <div className="flex gap-2">
                     <Button
                         variant="outline"
-                        onClick={() =>
-                            confirm('Ubah game ini ke mode individu?') &&
-                            router.put(route('admin.challenges.roster', challenge.code), { competition_mode: 'individual', participant_ids: [] }, { preserveScroll: true })
+                        onClick={async () =>
+                            (await confirm('Ubah game ini ke mode individu?')) &&
+                            router.put(
+                                route('admin.challenges.roster', challenge.code),
+                                { competition_mode: 'individual', participant_ids: [] },
+                                { preserveScroll: true },
+                            )
                         }
                     >
                         Ubah ke mode individu
@@ -402,7 +452,10 @@ function Teams({ challenge, teams, candidates }: Props) {
                                     size="icon"
                                     variant="ghost"
                                     aria-label="Hapus kelompok"
-                                    onClick={() => confirm(`Hapus kelompok ${t.name}?`) && router.delete(route('admin.teams.destroy', t.id), { preserveScroll: true })}
+                                    onClick={async () =>
+                                        (await confirm(`Hapus kelompok ${t.name}?`)) &&
+                                        router.delete(route('admin.teams.destroy', t.id), { preserveScroll: true })
+                                    }
                                 >
                                     <Trash2 />
                                 </Button>
@@ -452,6 +505,7 @@ function Teams({ challenge, teams, candidates }: Props) {
 }
 
 function Settings({ challenge, gameTypes }: Props) {
+    const { confirm } = useConfirmation();
     const [showKey, setShowKey] = useState(false);
     const form = useForm<ChallengeFormData>({
         code: challenge.code,
@@ -509,8 +563,8 @@ function Settings({ challenge, gameTypes }: Props) {
                     <CardContent className="grid gap-2">
                         <Button
                             variant="outline"
-                            onClick={() =>
-                                confirm('Hapus semua jawaban dan kunci game kembali? Waktu mulai juga direset.') &&
+                            onClick={async () =>
+                                (await confirm('Hapus semua jawaban dan kunci game kembali? Waktu mulai juga direset.')) &&
                                 router.post(route('admin.challenges.reset', challenge.code), {}, { preserveScroll: true })
                             }
                         >
@@ -519,7 +573,10 @@ function Settings({ challenge, gameTypes }: Props) {
                         <Button
                             variant="ghost"
                             className="text-destructive"
-                            onClick={() => confirm(`Hapus challenge ${challenge.title} beserta seluruh jawabannya?`) && router.delete(route('admin.challenges.destroy', challenge.code))}
+                            onClick={async () =>
+                                (await confirm(`Hapus challenge ${challenge.title} beserta seluruh jawabannya?`)) &&
+                                router.delete(route('admin.challenges.destroy', challenge.code))
+                            }
                         >
                             <Trash2 /> Hapus challenge
                         </Button>
