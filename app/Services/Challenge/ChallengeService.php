@@ -121,7 +121,7 @@ class ChallengeService
 
         $stats = $challenge->submissions()
             ->whereNotNull($column)
-            ->selectRaw("{$column} as entrant_id, count(*) as attempts, min(case when is_correct = 1 then elapsed_ms end) as best_ms")
+            ->selectRaw("{$column} as entrant_id, count(*) as attempts, min(case when is_correct then elapsed_ms end) as best_ms")
             ->groupBy($column)
             ->get()
             ->keyBy('entrant_id');

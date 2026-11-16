@@ -39,5 +39,6 @@ yarn-error.log
 .cod-deploy.lock
 
 # Local database files
+/backups/
 /database/*.sqlite
 /database/*.sqlite-*

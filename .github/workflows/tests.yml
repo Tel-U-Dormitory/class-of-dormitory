@@ -18,6 +18,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      matrix:
+        database: [mysql, pgsql]
     services:
       mysql:
         image: mysql:8.4
@@ -31,10 +34,24 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=10
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: cod
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: cod_s3_testing
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U cod -d cod_s3_testing"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     env:
+      DB_CONNECTION: ${{ matrix.database }}
       DB_HOST: 127.0.0.1
-      DB_PORT: 3306
-      DB_USERNAME: root
+      DB_PORT: ${{ matrix.database == 'pgsql' && '5432' || '3306' }}
+      DB_USERNAME: ${{ matrix.database == 'pgsql' && 'cod' || 'root' }}
       DB_PASSWORD: password
       INERTIA_SSR_ENABLED: 'false'
     steps:
@@ -46,7 +63,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_mysql, mbstring, intl, gd, zip, bcmath
+          extensions: pdo_mysql, pdo_pgsql, mbstring, intl, gd, zip, bcmath
           tools: composer:v2
           coverage: none
       - uses: actions/setup-node@v4
@@ -150,7 +167,7 @@ jobs:
           IMAGE: ${{ steps.image.outputs.name }}@${{ steps.publish.outputs.digest }}
         run: |
           printf '%s\n' "$IMAGE" > IMAGE.txt
-          tar -czf cod-deployment.tar.gz compose.production.yaml compose.resora.yaml compose.mysql.yaml .env.production.example scripts/deploy.sh docs/DEPLOYMENT.md IMAGE.txt
+          tar -czf cod-deployment.tar.gz compose.production.yaml compose.resora.yaml compose.mysql.yaml compose.supabase.yaml docker/mpm_supabase.conf .env.production.example scripts/deploy.sh scripts/db-snapshot.php docs/DEPLOYMENT.md docs/SUPABASE_MIGRATION.md IMAGE.txt
           printf '### Production image\n```text\n%s\n```\nDownload cod-deployment from this run for matching configuration.\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload deployment configuration
         uses: actions/upload-artifact@v4
