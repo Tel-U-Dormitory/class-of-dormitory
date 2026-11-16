@@ -8,11 +8,12 @@ use App\Http\Controllers\Exam\MediaController;
 use App\Http\Controllers\Exam\ObservationController;
 use App\Http\Controllers\Exam\SessionController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\PublicCastController;
 use App\Http\Controllers\Participant\AuthController;
 use App\Http\Controllers\Participant\DashboardController;
 use App\Http\Controllers\Participant\ProfileController;
 use App\Http\Controllers\Participant\RegistrationController;
+use App\Http\Controllers\PublicCastController;
+use App\Http\Middleware\MeasureExamMedia;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
@@ -53,10 +54,10 @@ Route::middleware(['auth:participant', 'participant.single-session'])->group(fun
         Route::post('heartbeat', [AnswerController::class, 'heartbeat'])->middleware('throttle:exam-heartbeat')->name('heartbeat');
         Route::post('sinkron', [AnswerController::class, 'checkpoint'])->middleware('throttle:exam-sync')->name('checkpoint');
 
-        Route::get('media/stimulus/{group}', [MediaController::class, 'stimulus'])->name('media.stimulus');
-        Route::get('media/slide/{group}/{index}', [MediaController::class, 'slide'])->whereNumber('index')->name('media.slide');
-        Route::get('media/soal/{question}', [MediaController::class, 'question'])->name('media.question');
-        Route::get('media/opsi/{option}', [MediaController::class, 'option'])->name('media.option');
+        Route::get('media/stimulus/{group}', [MediaController::class, 'stimulus'])->middleware(MeasureExamMedia::class)->name('media.stimulus');
+        Route::get('media/slide/{group}/{index}', [MediaController::class, 'slide'])->whereNumber('index')->middleware(MeasureExamMedia::class)->name('media.slide');
+        Route::get('media/soal/{question}', [MediaController::class, 'question'])->middleware(MeasureExamMedia::class)->name('media.question');
+        Route::get('media/opsi/{option}', [MediaController::class, 'option'])->middleware(MeasureExamMedia::class)->name('media.option');
     });
 });
 
