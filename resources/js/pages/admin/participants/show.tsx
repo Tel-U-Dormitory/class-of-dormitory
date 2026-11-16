@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/components/confirmation-provider';
 import { NativeSelect } from '@/components/native-select';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -43,6 +44,7 @@ interface Props {
 }
 
 export default function ParticipantShow({ participant, attempts, statuses, newToken }: Props) {
+    const { confirm } = useConfirmation();
     const { auth } = usePage<SharedData>().props;
     const isAdmin = auth.user?.role === 'admin';
 
@@ -73,8 +75,8 @@ export default function ParticipantShow({ participant, attempts, statuses, newTo
                             <>
                                 <Button
                                     variant="outline"
-                                    onClick={() =>
-                                        confirm('Buat token baru? Token lama langsung tidak berlaku dan peserta akan keluar dari sesinya.') &&
+                                    onClick={async () =>
+                                        (await confirm('Buat token baru? Token lama langsung tidak berlaku dan peserta akan keluar dari sesinya.')) &&
                                         router.post(route('admin.participants.reset-token', participant.id), {}, { preserveScroll: true })
                                     }
                                 >
@@ -83,9 +85,10 @@ export default function ParticipantShow({ participant, attempts, statuses, newTo
                                 <Button
                                     variant="ghost"
                                     className="text-destructive"
-                                    onClick={() =>
-                                        confirm(`Hapus ${participant.full_name} beserta seluruh data ujiannya? Tindakan ini tidak bisa dibatalkan.`) &&
-                                        router.delete(route('admin.participants.destroy', participant.id))
+                                    onClick={async () =>
+                                        (await confirm(
+                                            `Hapus ${participant.full_name} beserta seluruh data ujiannya? Tindakan ini tidak bisa dibatalkan.`,
+                                        )) && router.delete(route('admin.participants.destroy', participant.id))
                                     }
                                 >
                                     <Trash2 /> Hapus
@@ -106,7 +109,11 @@ export default function ParticipantShow({ participant, attempts, statuses, newTo
                     <Card>
                         <CardContent className="space-y-5">
                             {participant.photo_url ? (
-                                <img src={participant.photo_url} alt={`Foto ${participant.full_name}`} className="aspect-[3/4] w-full rounded-lg border object-cover" />
+                                <img
+                                    src={participant.photo_url}
+                                    alt={`Foto ${participant.full_name}`}
+                                    className="aspect-[3/4] w-full rounded-lg border object-cover"
+                                />
                             ) : (
                                 <div className="bg-muted flex aspect-[3/4] items-center justify-center rounded-lg">
                                     <UserRound className="text-muted-foreground size-12" />
@@ -128,11 +135,15 @@ export default function ParticipantShow({ participant, attempts, statuses, newTo
                                     <NativeSelect
                                         id="status"
                                         value={participant.status}
-                                        onChange={(e) => {
+                                        onChange={async (e) => {
                                             const status = e.target.value;
                                             const warn = status === 'disqualified' ? ' Ujian yang sedang berjalan akan langsung dihentikan.' : '';
-                                            if (confirm(`Ubah status menjadi "${statuses.find((s) => s.value === status)?.label}"?${warn}`)) {
-                                                router.patch(route('admin.participants.status', participant.id), { status }, { preserveScroll: true });
+                                            if (await confirm(`Ubah status menjadi "${statuses.find((s) => s.value === status)?.label}"?${warn}`)) {
+                                                router.patch(
+                                                    route('admin.participants.status', participant.id),
+                                                    { status },
+                                                    { preserveScroll: true },
+                                                );
                                             }
                                         }}
                                     >

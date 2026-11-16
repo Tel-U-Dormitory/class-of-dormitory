@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/components/confirmation-provider';
 import { DataTable, Td, Th, Tr } from '@/components/data-table';
 import InputError from '@/components/input-error';
 import { NativeSelect } from '@/components/native-select';
@@ -24,6 +25,7 @@ interface UserRow {
 }
 
 export default function Users({ users, roles }: { users: UserRow[]; roles: Option[] }) {
+    const { confirm } = useConfirmation();
     const [editing, setEditing] = useState<UserRow | 'new' | null>(null);
 
     return (
@@ -68,7 +70,10 @@ export default function Users({ users, roles }: { users: UserRow[]; roles: Optio
                                             size="icon"
                                             variant="ghost"
                                             aria-label={`Hapus ${u.name}`}
-                                            onClick={() => confirm(`Hapus akun ${u.email}?`) && router.delete(route('admin.users.destroy', u.id), { preserveScroll: true })}
+                                            onClick={async () =>
+                                                (await confirm(`Hapus akun ${u.email}?`)) &&
+                                                router.delete(route('admin.users.destroy', u.id), { preserveScroll: true })
+                                            }
                                         >
                                             <Trash2 />
                                         </Button>
@@ -80,7 +85,14 @@ export default function Users({ users, roles }: { users: UserRow[]; roles: Optio
                 </DataTable>
             </div>
 
-            {editing && <UserDialog key={editing === 'new' ? 'new' : editing.id} user={editing === 'new' ? null : editing} roles={roles} onClose={() => setEditing(null)} />}
+            {editing && (
+                <UserDialog
+                    key={editing === 'new' ? 'new' : editing.id}
+                    user={editing === 'new' ? null : editing}
+                    roles={roles}
+                    onClose={() => setEditing(null)}
+                />
+            )}
         </AppLayout>
     );
 }
@@ -101,7 +113,9 @@ function UserDialog({ user, roles, onClose }: { user: UserRow | null; roles: Opt
                 <form onSubmit={submit} className="space-y-4">
                     <DialogHeader>
                         <DialogTitle>{user ? 'Ubah akun' : 'Akun panitia baru'}</DialogTitle>
-                        <DialogDescription>Berikan password ke panitia secara langsung; mereka bisa menggantinya di pengaturan akun.</DialogDescription>
+                        <DialogDescription>
+                            Berikan password ke panitia secara langsung; mereka bisa menggantinya di pengaturan akun.
+                        </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-2">
                         <Label htmlFor="u-name">Nama</Label>
@@ -125,7 +139,13 @@ function UserDialog({ user, roles, onClose }: { user: UserRow | null; roles: Opt
                     </div>
                     <div className="grid gap-2">
                         <Label htmlFor="u-password">{user ? 'Password baru (opsional)' : 'Password'}</Label>
-                        <Input id="u-password" type="password" autoComplete="new-password" value={form.data.password} onChange={(e) => form.setData('password', e.target.value)} />
+                        <Input
+                            id="u-password"
+                            type="password"
+                            autoComplete="new-password"
+                            value={form.data.password}
+                            onChange={(e) => form.setData('password', e.target.value)}
+                        />
                         <InputError message={form.errors.password} />
                     </div>
                     <DialogFooter>

@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/components/confirmation-provider';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
 import { StatusBadge } from '@/components/status-badge';
@@ -43,6 +44,7 @@ interface Props {
 const statusLabels = { draft: 'Draf', open: 'Dibuka', closed: 'Ditutup' };
 
 export default function ExamEdit({ exam }: Props) {
+    const { confirm } = useConfirmation();
     const form = useForm({
         title: exam.title,
         description: exam.description ?? '',
@@ -55,14 +57,14 @@ export default function ExamEdit({ exam }: Props) {
     const errors = form.errors as Record<string, string | undefined>;
     const totalQuestions = exam.sections.reduce((sum, s) => sum + s.question_count, 0);
 
-    const setStatus = (status: string) => {
+    const setStatus = async (status: string) => {
         const message =
             status === 'open'
                 ? 'Buka ujian? Peserta dapat langsung memulai, dan ujian lain yang sedang dibuka akan ditutup.'
                 : status === 'closed'
                   ? 'Tutup ujian? Peserta baru tidak bisa memulai. Peserta yang sedang mengerjakan tetap bisa menyelesaikan sampai waktunya habis.'
                   : 'Kembalikan ke draf?';
-        if (confirm(message)) router.patch(route('admin.exams.status', exam.id), { status }, { preserveScroll: true });
+        if (await confirm(message)) router.patch(route('admin.exams.status', exam.id), { status }, { preserveScroll: true });
     };
 
     return (
@@ -120,8 +122,8 @@ export default function ExamEdit({ exam }: Props) {
                                 variant="outline"
                                 size="sm"
                                 disabled={exam.question_bank_locked}
-                                onClick={() =>
-                                    confirm(`Nilai ulang ${exam.submitted_count} peserta berdasarkan kunci jawaban saat ini?`) &&
+                                onClick={async () =>
+                                    (await confirm(`Nilai ulang ${exam.submitted_count} peserta berdasarkan kunci jawaban saat ini?`)) &&
                                     router.post(route('admin.exams.rescore', exam.id), {}, { preserveScroll: true })
                                 }
                             >
@@ -173,12 +175,21 @@ export default function ExamEdit({ exam }: Props) {
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="description">Deskripsi</Label>
-                                <Textarea id="description" value={form.data.description} onChange={(e) => form.setData('description', e.target.value)} />
+                                <Textarea
+                                    id="description"
+                                    value={form.data.description}
+                                    onChange={(e) => form.setData('description', e.target.value)}
+                                />
                             </div>
                             <div className="grid gap-5 sm:grid-cols-2">
                                 <div className="grid gap-2">
                                     <Label htmlFor="scheduled_at">Jadwal (informasi)</Label>
-                                    <Input id="scheduled_at" type="datetime-local" value={form.data.scheduled_at} onChange={(e) => form.setData('scheduled_at', e.target.value)} />
+                                    <Input
+                                        id="scheduled_at"
+                                        type="datetime-local"
+                                        value={form.data.scheduled_at}
+                                        onChange={(e) => form.setData('scheduled_at', e.target.value)}
+                                    />
                                     <InputError message={form.errors.scheduled_at} />
                                 </div>
                                 <div className="grid gap-2">
@@ -195,7 +206,11 @@ export default function ExamEdit({ exam }: Props) {
                             </div>
                             <div className="grid gap-2">
                                 <Label htmlFor="announcement">Pengumuman untuk peserta</Label>
-                                <Textarea id="announcement" value={form.data.announcement} onChange={(e) => form.setData('announcement', e.target.value)} />
+                                <Textarea
+                                    id="announcement"
+                                    value={form.data.announcement}
+                                    onChange={(e) => form.setData('announcement', e.target.value)}
+                                />
                             </div>
                         </CardContent>
                     </Card>
@@ -203,7 +218,11 @@ export default function ExamEdit({ exam }: Props) {
                     <Card>
                         <CardHeader>
                             <CardTitle className="text-base">Durasi & instruksi pilar</CardTitle>
-                            {exam.has_attempts && <CardDescription>Ujian sudah dikerjakan. Perubahan durasi hanya berlaku untuk pilar yang belum dimulai peserta.</CardDescription>}
+                            {exam.has_attempts && (
+                                <CardDescription>
+                                    Ujian sudah dikerjakan. Perubahan durasi hanya berlaku untuk pilar yang belum dimulai peserta.
+                                </CardDescription>
+                            )}
                         </CardHeader>
                         <CardContent className="grid gap-5">
                             {exam.sections.map((s, i) => (
@@ -246,7 +265,11 @@ export default function ExamEdit({ exam }: Props) {
 
                     <div className="flex flex-wrap items-center justify-between gap-3 xl:col-span-2">
                         <div className="flex gap-2">
-                            <Button type="button" variant="outline" onClick={() => router.patch(route('admin.exams.publish', exam.id), {}, { preserveScroll: true })}>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => router.patch(route('admin.exams.publish', exam.id), {}, { preserveScroll: true })}
+                            >
                                 {exam.results_published ? <EyeOff /> : <Eye />}
                                 {exam.results_published ? 'Tarik publikasi hasil' : 'Publikasikan hasil ke peserta'}
                             </Button>
@@ -255,7 +278,10 @@ export default function ExamEdit({ exam }: Props) {
                                     type="button"
                                     variant="ghost"
                                     className="text-destructive"
-                                    onClick={() => confirm('Hapus ujian beserta seluruh soalnya?') && router.delete(route('admin.exams.destroy', exam.id))}
+                                    onClick={async () =>
+                                        (await confirm('Hapus ujian beserta seluruh soalnya?')) &&
+                                        router.delete(route('admin.exams.destroy', exam.id))
+                                    }
                                 >
                                     <Trash2 /> Hapus ujian
                                 </Button>

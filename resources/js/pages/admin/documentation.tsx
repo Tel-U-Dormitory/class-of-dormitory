@@ -1,3 +1,4 @@
+import { useConfirmation } from '@/components/confirmation-provider';
 import InputError from '@/components/input-error';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -17,9 +18,11 @@ interface Item {
 }
 
 export default function Documentation({ items, landingLimit, title }: { items: Item[]; landingLimit: number; title: string }) {
+    const { confirm } = useConfirmation();
     const [editing, setEditing] = useState<Item | 'new' | null>(null);
 
-    const move = (item: Item, direction: 'up' | 'down') => router.patch(route('admin.documentation.move', item.id), { direction }, { preserveScroll: true });
+    const move = (item: Item, direction: 'up' | 'down') =>
+        router.patch(route('admin.documentation.move', item.id), { direction }, { preserveScroll: true });
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Dokumentasi', href: '/admin/dokumentasi' }]}>
@@ -48,7 +51,12 @@ export default function Documentation({ items, landingLimit, title }: { items: I
 
                             return (
                                 <div key={item.id} className={cn('bg-card overflow-hidden rounded-xl border', !shown && 'opacity-60')}>
-                                    <img src={item.url} alt={item.caption ?? 'Dokumentasi'} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                                    <img
+                                        src={item.url}
+                                        alt={item.caption ?? 'Dokumentasi'}
+                                        className="aspect-[4/3] w-full object-cover"
+                                        loading="lazy"
+                                    />
                                     <div className="space-y-3 p-3">
                                         <div>
                                             <p className="truncate text-sm font-medium">{item.caption || 'Tanpa keterangan'}</p>
@@ -58,10 +66,22 @@ export default function Documentation({ items, landingLimit, title }: { items: I
                                         </div>
                                         <div className="flex items-center justify-between">
                                             <div className="flex">
-                                                <Button size="icon" variant="ghost" aria-label="Naikkan" disabled={index === 0} onClick={() => move(item, 'up')}>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    aria-label="Naikkan"
+                                                    disabled={index === 0}
+                                                    onClick={() => move(item, 'up')}
+                                                >
                                                     <ArrowUp />
                                                 </Button>
-                                                <Button size="icon" variant="ghost" aria-label="Turunkan" disabled={index === items.length - 1} onClick={() => move(item, 'down')}>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    aria-label="Turunkan"
+                                                    disabled={index === items.length - 1}
+                                                    onClick={() => move(item, 'down')}
+                                                >
                                                     <ArrowDown />
                                                 </Button>
                                             </div>
@@ -73,7 +93,10 @@ export default function Documentation({ items, landingLimit, title }: { items: I
                                                     size="icon"
                                                     variant="ghost"
                                                     aria-label="Hapus"
-                                                    onClick={() => confirm('Hapus foto ini?') && router.delete(route('admin.documentation.destroy', item.id), { preserveScroll: true })}
+                                                    onClick={async () =>
+                                                        (await confirm('Hapus foto ini?')) &&
+                                                        router.delete(route('admin.documentation.destroy', item.id), { preserveScroll: true })
+                                                    }
                                                 >
                                                     <Trash2 />
                                                 </Button>
@@ -87,7 +110,13 @@ export default function Documentation({ items, landingLimit, title }: { items: I
                 )}
             </div>
 
-            {editing && <DocumentationDialog key={editing === 'new' ? 'new' : editing.id} item={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+            {editing && (
+                <DocumentationDialog
+                    key={editing === 'new' ? 'new' : editing.id}
+                    item={editing === 'new' ? null : editing}
+                    onClose={() => setEditing(null)}
+                />
+            )}
         </AppLayout>
     );
 }
@@ -135,14 +164,21 @@ function DocumentationDialog({ item, onClose }: { item: Item | null; onClose: ()
                 <form onSubmit={submit} className="space-y-4">
                     <DialogHeader>
                         <DialogTitle>{item ? 'Ubah foto' : 'Tambah foto'}</DialogTitle>
-                        <DialogDescription>Format JPG, PNG, atau WebP, maksimal 2 MB. Rasio 4:3 paling pas (misalnya 1200 x 900 px).</DialogDescription>
+                        <DialogDescription>
+                            Format JPG, PNG, atau WebP, maksimal 2 MB. Rasio 4:3 paling pas (misalnya 1200 x 900 px).
+                        </DialogDescription>
                     </DialogHeader>
 
                     {item && <img src={item.url} alt="" className="h-32 rounded border object-cover" />}
 
                     <div className="grid gap-2">
                         <Label htmlFor="doc-image">{item ? 'Ganti foto (opsional)' : 'Foto'}</Label>
-                        <Input id="doc-image" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => form.setData('image', e.target.files?.[0] ?? null)} />
+                        <Input
+                            id="doc-image"
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            onChange={(e) => form.setData('image', e.target.files?.[0] ?? null)}
+                        />
                         <InputError message={form.errors.image} />
                     </div>
 

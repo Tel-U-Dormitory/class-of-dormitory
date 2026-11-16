@@ -1,16 +1,17 @@
+import { useConfirmation } from '@/components/confirmation-provider';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@/components/data-table';
 import { PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { formatDateTime } from '@/lib/format';
-import { Input } from '@/components/ui/input';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Activity, CheckCircle2, Eye, MonitorPlay, Trophy, Users } from 'lucide-react';
 import { useState } from 'react';
-import { Activity, CheckCircle2, MonitorPlay, Trophy, Users, Eye } from 'lucide-react';
 
 interface Props {
     exam: { id: number; title: string; status: string; status_label: string; scheduled_at: string | null; question_count: number } | null;
@@ -22,13 +23,14 @@ interface Props {
 }
 
 export default function Dashboard({ exam, stats, registration, statusBreakdown, buildings, recentParticipants }: Props) {
+    const { confirm } = useConfirmation();
     const maxBuilding = Math.max(1, ...buildings.map((b) => b.total));
     const { auth } = usePage<SharedData>().props;
     const [message, setMessage] = useState(registration.closed_message);
 
-    const toggleRegistration = () => {
+    const toggleRegistration = async () => {
         const open = !registration.open;
-        if (confirm(open ? 'Buka pendaftaran peserta?' : 'Tutup pendaftaran? Calon peserta tidak bisa mendaftar lagi.')) {
+        if (await confirm(open ? 'Buka pendaftaran peserta?' : 'Tutup pendaftaran? Calon peserta tidak bisa mendaftar lagi.')) {
             router.put(route('admin.registration.update'), { open, closed_message: message }, { preserveScroll: true });
         }
     };
@@ -82,7 +84,9 @@ export default function Dashboard({ exam, stats, registration, statusBreakdown, 
                                 <div>
                                     <p className="font-medium">Pendaftaran {registration.open ? 'dibuka' : 'ditutup'}</p>
                                     <p className="text-muted-foreground text-sm">
-                                        {registration.open ? 'Calon peserta bisa mendaftar dari situs.' : 'Tombol daftar disembunyikan dan formulir menolak pendaftaran baru.'}
+                                        {registration.open
+                                            ? 'Calon peserta bisa mendaftar dari situs.'
+                                            : 'Tombol daftar disembunyikan dan formulir menolak pendaftaran baru.'}
                                     </p>
                                 </div>
                             </div>

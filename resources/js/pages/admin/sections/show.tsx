@@ -1,6 +1,7 @@
 import { GroupFormDialog } from '@/components/admin/group-form-dialog';
 import { type BankGroup, type BankQuestion } from '@/components/admin/question-bank-types';
 import { QuestionFormDialog } from '@/components/admin/question-form-dialog';
+import { useConfirmation } from '@/components/confirmation-provider';
 import { MathText } from '@/components/exam/math-text';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
@@ -24,6 +25,7 @@ interface Props {
 const stimulusIcon = { none: null, text: Text, image: Image, video: Film, flash: Zap };
 
 export default function SectionShow({ exam, section, groups, stimulusTypes, locked }: Props) {
+    const { confirm } = useConfirmation();
     const [groupDialog, setGroupDialog] = useState<{ open: boolean; group: BankGroup | null }>({ open: false, group: null });
     const [questionDialog, setQuestionDialog] = useState<{ open: boolean; groupId: number; question: BankQuestion | null }>({
         open: false,
@@ -125,8 +127,8 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                         variant="ghost"
                                         disabled={locked}
                                         aria-label="Hapus grup"
-                                        onClick={() =>
-                                            confirm(`Hapus grup "${group.title}" beserta seluruh soalnya?`) &&
+                                        onClick={async () =>
+                                            (await confirm(`Hapus grup "${group.title}" beserta seluruh soalnya?`)) &&
                                             router.delete(route('admin.groups.destroy', group.id), { preserveScroll: true })
                                         }
                                     >
@@ -201,8 +203,8 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                                 variant="ghost"
                                                 disabled={locked}
                                                 aria-label="Hapus soal"
-                                                onClick={() =>
-                                                    confirm('Hapus soal ini?') &&
+                                                onClick={async () =>
+                                                    (await confirm('Hapus soal ini?')) &&
                                                     router.delete(route('admin.questions.destroy', q.id), { preserveScroll: true })
                                                 }
                                             >
