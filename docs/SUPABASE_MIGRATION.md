@@ -63,11 +63,18 @@ ke snapshot MySQL lama karena dapat menghilangkan jawaban.
 
 ## Anggaran VPS setelah MySQL dihentikan
 
-Template memberi app 384 MiB RAM dan scheduler 128 MiB, dengan 4 worker Apache
-tetap. Ini memberi app ruang lebih besar sambil menyisakan kapasitas host untuk
+Template memberi app 384 MiB RAM dan scheduler 128 MiB, dengan maksimum 12 worker
+Apache dan keep-alive backend dimatikan. Cache/rate limiter memakai file pada
+volume storage bersama; session database tetap dipertahankan. PDO PostgreSQL
+mengirim SQL beserta parameter dalam satu panggilan tanpa PREPARE terpisah;
+binding parameter tetap digunakan. Pada pengukuran VPS, query berparameter
+sederhana turun dari sekitar 259 ms menjadi 86 ms dengan opsi tersebut.
+
+Konfigurasi ini memberi app ruang sambil menyisakan kapasitas host untuk
 kernel, Docker, SSH, dan reverse proxy. Limit container adalah plafon, bukan
 reservasi dan bukan bukti kapasitas 170 peserta. Jangan menghapus semua limit
-pada host sekitar 962 MiB atau menggunakan seluruh RAM untuk PHP.
+pada host sekitar 962 MiB atau menggunakan seluruh RAM untuk PHP. Batas worker
+ini khusus template Supabase; template MySQL tetap memakai batas lama.
 
 Ukur puncak memori, swap-in/out, waktu submit, tekanan CPU, koneksi database dan
 latensi jaringan pada uji beban terpisah sebelum menaikkan worker/limit lagi.
