@@ -9,6 +9,7 @@ import { type Option } from '@/types';
 import { useForm } from '@inertiajs/react';
 import { LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import { type BankGroup } from './question-bank-types';
+import { UploadImagePreview } from './upload-image-preview';
 
 type Slide = { path: string | null; url: string | null; image: File | null; duration: number };
 
@@ -60,7 +61,11 @@ export function GroupFormDialog({
         }
     };
 
-    const setSlide = (i: number, patch: Partial<Slide>) => form.setData('slides', form.data.slides.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+    const setSlide = (i: number, patch: Partial<Slide>) =>
+        form.setData(
+            'slides',
+            form.data.slides.map((s, j) => (j === i ? { ...s, ...patch } : s)),
+        );
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -68,29 +73,52 @@ export function GroupFormDialog({
                 <form onSubmit={submit} className="space-y-5">
                     <DialogHeader>
                         <DialogTitle>{group ? 'Ubah grup soal' : 'Grup soal baru'}</DialogTitle>
-                        <DialogDescription>Grup mengelompokkan soal sejenis. Materi observasi (opsional) tampil sekali sebelum soal grup bisa dikerjakan.</DialogDescription>
+                        <DialogDescription>
+                            Grup mengelompokkan soal sejenis. Materi observasi (opsional) tampil sekali sebelum soal grup bisa dikerjakan.
+                        </DialogDescription>
                     </DialogHeader>
 
                     <div className="grid gap-4 sm:grid-cols-[1fr_10rem_6rem]">
                         <div className="grid gap-2">
                             <Label htmlFor="g-title">Nama grup</Label>
-                            <Input id="g-title" value={form.data.title} onChange={(e) => form.setData('title', e.target.value)} placeholder="Denah Gedung" />
+                            <Input
+                                id="g-title"
+                                value={form.data.title}
+                                onChange={(e) => form.setData('title', e.target.value)}
+                                placeholder="Denah Gedung"
+                            />
                             <InputError message={errors.title} />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="g-kind">Jenis</Label>
-                            <Input id="g-kind" value={form.data.kind} onChange={(e) => form.setData('kind', e.target.value)} placeholder="floor-plan" />
+                            <Input
+                                id="g-kind"
+                                value={form.data.kind}
+                                onChange={(e) => form.setData('kind', e.target.value)}
+                                placeholder="floor-plan"
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="g-position">Urutan</Label>
-                            <Input id="g-position" type="number" min={0} value={form.data.position} onChange={(e) => form.setData('position', e.target.value)} placeholder="auto" />
+                            <Input
+                                id="g-position"
+                                type="number"
+                                min={0}
+                                value={form.data.position}
+                                onChange={(e) => form.setData('position', e.target.value)}
+                                placeholder="auto"
+                            />
                         </div>
                     </div>
 
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="grid gap-2">
                             <Label htmlFor="g-type">Materi observasi</Label>
-                            <NativeSelect id="g-type" value={type} onChange={(e) => form.setData('stimulus_type', e.target.value as GroupForm['stimulus_type'])}>
+                            <NativeSelect
+                                id="g-type"
+                                value={type}
+                                onChange={(e) => form.setData('stimulus_type', e.target.value as GroupForm['stimulus_type'])}
+                            >
                                 {stimulusTypes.map((t) => (
                                     <option key={t.value} value={t.value}>
                                         {t.label}
@@ -116,7 +144,12 @@ export function GroupFormDialog({
                     {type === 'text' && (
                         <div className="grid gap-2">
                             <Label htmlFor="g-text">Teks yang harus dihafal</Label>
-                            <Textarea id="g-text" rows={6} value={form.data.stimulus_text} onChange={(e) => form.setData('stimulus_text', e.target.value)} />
+                            <Textarea
+                                id="g-text"
+                                rows={6}
+                                value={form.data.stimulus_text}
+                                onChange={(e) => form.setData('stimulus_text', e.target.value)}
+                            />
                             <InputError message={errors.stimulus_text} />
                         </div>
                     )}
@@ -160,14 +193,32 @@ export function GroupFormDialog({
                                 <div key={i} className="grid grid-cols-[3rem_1fr_6rem_auto] items-center gap-3 rounded-lg border p-2">
                                     <div className="bg-muted size-12 overflow-hidden rounded">
                                         {slide.image ? (
-                                            <img src={URL.createObjectURL(slide.image)} className="size-full object-cover" alt="" />
+                                            <UploadImagePreview file={slide.image} />
                                         ) : slide.url ? (
                                             <img src={slide.url} className="size-full object-cover" alt="" />
                                         ) : null}
                                     </div>
                                     <Input type="file" accept="image/*" onChange={(e) => setSlide(i, { image: e.target.files?.[0] ?? null })} />
-                                    <Input type="number" min={1} max={30} value={slide.duration} onChange={(e) => setSlide(i, { duration: Number(e.target.value) })} aria-label="Durasi detik" />
-                                    <Button type="button" size="icon" variant="ghost" onClick={() => form.setData('slides', form.data.slides.filter((_, j) => j !== i))} aria-label="Hapus slide">
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={30}
+                                        value={slide.duration}
+                                        onChange={(e) => setSlide(i, { duration: Number(e.target.value) })}
+                                        aria-label="Durasi detik"
+                                    />
+                                    <Button
+                                        type="button"
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() =>
+                                            form.setData(
+                                                'slides',
+                                                form.data.slides.filter((_, j) => j !== i),
+                                            )
+                                        }
+                                        aria-label="Hapus slide"
+                                    >
                                         <Trash2 />
                                     </Button>
                                 </div>

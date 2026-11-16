@@ -25,7 +25,11 @@ const stimulusIcon = { none: null, text: Text, image: Image, video: Film, flash:
 
 export default function SectionShow({ exam, section, groups, stimulusTypes, locked }: Props) {
     const [groupDialog, setGroupDialog] = useState<{ open: boolean; group: BankGroup | null }>({ open: false, group: null });
-    const [questionDialog, setQuestionDialog] = useState<{ open: boolean; groupId: number; question: BankQuestion | null }>({ open: false, groupId: 0, question: null });
+    const [questionDialog, setQuestionDialog] = useState<{ open: boolean; groupId: number; question: BankQuestion | null }>({
+        open: false,
+        groupId: 0,
+        question: null,
+    });
     const meta = pillarMeta[section.pillar];
     const total = groups.reduce((sum, g) => sum + g.questions.filter((q) => q.is_active).length, 0);
 
@@ -53,9 +57,9 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                     <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
                         <Lock className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
                         <p>
-                            Bank soal terkunci karena ujian sedang dibuka atau masih ada peserta yang mengerjakan. Perubahan kunci jawaban atau poin di tengah
-                            ujian akan membuat penilaian tidak adil. Setelah semua selesai, perbaiki soal lalu gunakan <strong>Hitung ulang nilai</strong> di
-                            halaman ujian.
+                            Bank soal terkunci karena ujian sedang dibuka atau masih ada peserta yang mengerjakan. Perubahan kunci jawaban atau poin
+                            di tengah ujian akan membuat penilaian tidak adil. Setelah semua selesai, perbaiki soal lalu gunakan{' '}
+                            <strong>Hitung ulang nilai</strong> di halaman ujian.
                         </p>
                     </div>
                 )}
@@ -107,7 +111,13 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                             </a>
                                         </Button>
                                     )}
-                                    <Button size="icon" variant="ghost" aria-label="Ubah grup" disabled={locked} onClick={() => setGroupDialog({ open: true, group })}>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        aria-label="Ubah grup"
+                                        disabled={locked}
+                                        onClick={() => setGroupDialog({ open: true, group })}
+                                    >
                                         <Pencil />
                                     </Button>
                                     <Button
@@ -115,7 +125,10 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                         variant="ghost"
                                         disabled={locked}
                                         aria-label="Hapus grup"
-                                        onClick={() => confirm(`Hapus grup "${group.title}" beserta seluruh soalnya?`) && router.delete(route('admin.groups.destroy', group.id), { preserveScroll: true })}
+                                        onClick={() =>
+                                            confirm(`Hapus grup "${group.title}" beserta seluruh soalnya?`) &&
+                                            router.delete(route('admin.groups.destroy', group.id), { preserveScroll: true })
+                                        }
                                     >
                                         <Trash2 />
                                     </Button>
@@ -123,12 +136,24 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                             </CardHeader>
                             <CardContent className="divide-y p-0">
                                 {group.stimulus_type === 'text' && group.stimulus_text && (
-                                    <p className="bg-muted/40 text-muted-foreground line-clamp-3 px-5 py-3 text-sm whitespace-pre-line">{group.stimulus_text}</p>
+                                    <p className="bg-muted/40 text-muted-foreground line-clamp-3 px-5 py-3 text-sm whitespace-pre-line">
+                                        {group.stimulus_text}
+                                    </p>
                                 )}
                                 {group.questions.map((q) => (
                                     <div key={q.id} className={cn('flex gap-4 px-5 py-4', !q.is_active && 'opacity-50')}>
                                         <span className="text-muted-foreground w-6 shrink-0 pt-0.5 text-sm tabular-nums">{q.position}</span>
                                         <div className="min-w-0 flex-1">
+                                            {q.image_url && (
+                                                <a href={q.image_url} target="_blank" rel="noreferrer">
+                                                    <img
+                                                        src={q.image_url}
+                                                        alt={`Gambar soal ${q.position}`}
+                                                        loading="lazy"
+                                                        className="mb-2 max-h-32 max-w-full object-contain"
+                                                    />
+                                                </a>
+                                            )}
                                             <MathText text={q.body} latex={q.is_latex} className="line-clamp-3 text-sm whitespace-pre-line" />
                                             <div className="mt-2 flex flex-wrap gap-1.5">
                                                 {q.options.map((o) => (
@@ -136,10 +161,22 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                                         key={o.id}
                                                         className={cn(
                                                             'inline-flex max-w-56 items-center gap-1 truncate rounded border px-2 py-0.5 text-xs',
-                                                            o.is_correct ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground',
+                                                            o.is_correct
+                                                                ? 'border-emerald-500/60 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                                                : 'text-muted-foreground',
                                                         )}
                                                     >
-                                                        <strong>{o.label}</strong> {o.image_url ? 'gambar' : o.content}
+                                                        <strong>{o.label}</strong>{' '}
+                                                        {o.image_url ? (
+                                                            <img
+                                                                src={o.image_url}
+                                                                alt={`Pilihan ${o.label}`}
+                                                                loading="lazy"
+                                                                className="max-h-20 max-w-32 object-contain"
+                                                            />
+                                                        ) : (
+                                                            o.content
+                                                        )}
                                                     </span>
                                                 ))}
                                             </div>
@@ -150,7 +187,13 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                             </p>
                                         </div>
                                         <div className="flex shrink-0 gap-1">
-                                            <Button size="icon" variant="ghost" aria-label="Ubah soal" disabled={locked} onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: q })}>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                aria-label="Ubah soal"
+                                                disabled={locked}
+                                                onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: q })}
+                                            >
                                                 <Pencil />
                                             </Button>
                                             <Button
@@ -158,7 +201,10 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                                 variant="ghost"
                                                 disabled={locked}
                                                 aria-label="Hapus soal"
-                                                onClick={() => confirm('Hapus soal ini?') && router.delete(route('admin.questions.destroy', q.id), { preserveScroll: true })}
+                                                onClick={() =>
+                                                    confirm('Hapus soal ini?') &&
+                                                    router.delete(route('admin.questions.destroy', q.id), { preserveScroll: true })
+                                                }
                                             >
                                                 <Trash2 />
                                             </Button>
@@ -166,7 +212,12 @@ export default function SectionShow({ exam, section, groups, stimulusTypes, lock
                                     </div>
                                 ))}
                                 <div className="px-5 py-3">
-                                    <Button size="sm" variant="ghost" disabled={locked} onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: null })}>
+                                    <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        disabled={locked}
+                                        onClick={() => setQuestionDialog({ open: true, groupId: group.id, question: null })}
+                                    >
                                         <Plus /> Tambah soal
                                     </Button>
                                 </div>

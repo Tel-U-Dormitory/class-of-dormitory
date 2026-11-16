@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { formatClock } from '@/lib/format';
 import { Eye } from 'lucide-react';
+import { ExamImage } from './exam-image';
 import { type ExamGroup } from './types';
 
 /**
@@ -47,12 +48,19 @@ export function ObservationOverlay({ group, now, onFinish, finishing }: { group:
             <div className="flex flex-1 items-center justify-center overflow-auto p-4 sm:p-8">
                 {stimulus?.text && <div className="exam-prose bg-card max-w-3xl rounded-xl border p-6 text-lg sm:p-8">{stimulus.text}</div>}
                 {group.stimulus_type === 'image' && stimulus?.media_url && (
-                    <img src={stimulus.media_url} alt="Materi observasi" className="max-h-full max-w-full rounded-lg object-contain" draggable={false} />
+                    <ExamImage src={stimulus.media_url} alt="Materi observasi" className="max-h-full max-w-full rounded-lg object-contain" />
                 )}
                 {group.stimulus_type === 'video' && stimulus?.media_url && (
                     <video src={stimulus.media_url} autoPlay muted playsInline className="max-h-full max-w-full rounded-lg" disablePictureInPicture />
                 )}
-                {slideUrl && <img key={slideUrl} src={slideUrl} alt="Kilasan" className="animate-in fade-in max-h-full max-w-full object-contain duration-200" draggable={false} />}
+                {slideUrl && (
+                    <ExamImage
+                        key={slideUrl}
+                        src={slideUrl}
+                        alt="Kilasan"
+                        className="animate-in fade-in max-h-full max-w-full object-contain duration-200"
+                    />
+                )}
             </div>
 
             <div className="flex justify-end border-t px-4 py-3 sm:px-6">

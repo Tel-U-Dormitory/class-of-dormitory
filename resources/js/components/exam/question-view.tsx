@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Eye, Lock } from 'lucide-react';
+import { ExamImage } from './exam-image';
 import { MathText } from './math-text';
 import { type ExamGroup, type ExamQuestion } from './types';
 
@@ -33,8 +34,8 @@ export function QuestionView({
                 </div>
                 <h2 className="mt-5 text-lg font-semibold">{group.title}</h2>
                 <p className="text-muted-foreground mt-2 max-w-md text-sm leading-relaxed">
-                    Soal {question.number} berada di grup dengan materi observasi. Materi akan tampil selama {group.observation.duration_seconds} detik dan hanya
-                    sekali. Setelah itu soal-soal grup ini terbuka.
+                    Soal {question.number} berada di grup dengan materi observasi. Materi akan tampil selama {group.observation.duration_seconds}{' '}
+                    detik dan hanya sekali. Setelah itu soal-soal grup ini terbuka.
                 </p>
                 <Button className="mt-6" size="lg" onClick={onStartObservation} disabled={startingObservation || observationBusy}>
                     Tampilkan materi observasi
@@ -56,10 +57,18 @@ export function QuestionView({
             <MathText text={question.body} latex={question.is_latex} className="exam-prose" />
 
             {question.image_url && (
-                <img src={question.image_url} alt={`Gambar soal ${question.number}`} className="mt-5 max-h-[22rem] rounded-lg border object-contain" draggable={false} />
+                <ExamImage
+                    src={question.image_url}
+                    alt={`Gambar soal ${question.number}`}
+                    className="mt-5 max-h-[22rem] rounded-lg border object-contain"
+                />
             )}
 
-            <div role="radiogroup" aria-label="Pilihan jawaban" className={cn('mt-6 grid gap-3', question.options_are_images ? 'grid-cols-2' : 'grid-cols-1')}>
+            <div
+                role="radiogroup"
+                aria-label="Pilihan jawaban"
+                className={cn('mt-6 grid gap-3', question.options_are_images ? 'grid-cols-2' : 'grid-cols-1')}
+            >
                 {question.options.map((option, i) => {
                     const isSelected = selected === option.id;
                     return (
@@ -83,7 +92,7 @@ export function QuestionView({
                                 {option.label}
                             </span>
                             {question.options_are_images ? (
-                                <img src={option.content} alt={`Pilihan ${option.label}`} className="max-h-40 w-full object-contain" draggable={false} />
+                                <ExamImage src={option.content} alt={`Pilihan ${option.label}`} className="max-h-40 w-full object-contain" />
                             ) : (
                                 <span className="text-[0.975rem] leading-relaxed">{option.content}</span>
                             )}
