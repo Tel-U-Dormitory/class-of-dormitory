@@ -4,9 +4,12 @@ name: cod-production
 x-app: &app
   image: ${COD_IMAGE:?Set COD_IMAGE to a verified PostgreSQL-capable image}
   env_file: .env.production
+  environment:
+    CACHE_STORE: file
   restart: unless-stopped
   volumes:
     - storage:/var/www/html/storage
+    - ./docker/mpm_supabase.conf:/etc/apache2/mods-available/mpm_prefork.conf:ro
   logging:
     driver: json-file
     options:

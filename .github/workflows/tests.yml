@@ -167,7 +167,7 @@ jobs:
           IMAGE: ${{ steps.image.outputs.name }}@${{ steps.publish.outputs.digest }}
         run: |
           printf '%s\n' "$IMAGE" > IMAGE.txt
-          tar -czf cod-deployment.tar.gz compose.production.yaml compose.resora.yaml compose.mysql.yaml compose.supabase.yaml .env.production.example scripts/deploy.sh scripts/db-snapshot.php docs/DEPLOYMENT.md docs/SUPABASE_MIGRATION.md IMAGE.txt
+          tar -czf cod-deployment.tar.gz compose.production.yaml compose.resora.yaml compose.mysql.yaml compose.supabase.yaml docker/mpm_supabase.conf .env.production.example scripts/deploy.sh scripts/db-snapshot.php docs/DEPLOYMENT.md docs/SUPABASE_MIGRATION.md IMAGE.txt
           printf '### Production image\n```text\n%s\n```\nDownload cod-deployment from this run for matching configuration.\n' "$IMAGE" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload deployment configuration
         uses: actions/upload-artifact@v4
