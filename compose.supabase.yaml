@@ -1,0 +1,47 @@
+# Apply only after verified data migration and a production maintenance window.
+name: cod-production
+
+x-app: &app
+  image: ${COD_IMAGE:?Set COD_IMAGE to a verified PostgreSQL-capable image}
+  env_file: .env.production
+  environment:
+    CACHE_STORE: file
+  restart: unless-stopped
+  volumes:
+    - storage:/var/www/html/storage
+    - ./docker/mpm_supabase.conf:/etc/apache2/mods-available/mpm_prefork.conf:ro
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  app:
+    <<: *app
+    mem_limit: 384m
+    memswap_limit: 448m
+    networks:
+      proxy:
+        aliases:
+          - cod-web
+    stop_grace_period: 30s
+
+  scheduler:
+    <<: *app
+    mem_limit: 128m
+    memswap_limit: 192m
+    command: ["php", "artisan", "schedule:work"]
+    networks:
+      - default
+    healthcheck:
+      disable: true
+    stop_grace_period: 70s
+
+volumes:
+  storage:
+
+networks:
+  proxy:
+    external: true
+    name: resora-proxy

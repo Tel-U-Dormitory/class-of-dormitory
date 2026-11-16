@@ -114,7 +114,7 @@ class SubmitAnswersTest extends TestCase
         \Illuminate\Support\Facades\DB::enableQueryLog();
         app(\App\Services\Exam\ScoringService::class)->score($this->attempt());
         $writes = collect(\Illuminate\Support\Facades\DB::getQueryLog())->filter(fn ($query) =>
-            str_starts_with($query['query'], 'insert into `attempt_answers`') || str_starts_with($query['query'], 'update `attempt_answers`'));
+            preg_match('/^(insert into|update) ["`]attempt_answers["`]/', $query['query']));
         \Illuminate\Support\Facades\DB::disableQueryLog();
         $this->assertCount(1, $writes);
         $this->assertSame(3, $this->attempt()->score_total);
