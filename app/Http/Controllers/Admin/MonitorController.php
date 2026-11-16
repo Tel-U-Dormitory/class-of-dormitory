@@ -25,7 +25,7 @@ class MonitorController extends Controller
             ->where('exam_id', $exam->id)
             ->with(['participant:id,full_name,nim,building_id', 'participant.building:id,name', 'sections'])
             ->withCount(['answers as answered_count' => fn ($q) => $q->whereNotNull('question_option_id')])
-            ->orderByRaw("FIELD(status, 'in_progress', 'on_break', 'submitted')")
+            ->orderByRaw("CASE status WHEN 'in_progress' THEN 1 WHEN 'on_break' THEN 2 WHEN 'submitted' THEN 3 ELSE 0 END")
             ->orderByDesc('tab_switch_count')
             ->get()
             ->map(function (ExamAttempt $a) use ($exam) {
