@@ -1,0 +1,8 @@
+# Include inside the EXISTING Nginx server block. Mount the application's
+# storage volume read-only at /var/www/html/storage in the proxy container.
+location /_exam-media/ {
+    internal;
+    alias /var/www/html/storage/app/private/exam-media/;
+    add_header Cache-Control "private, no-store" always;
+    add_header X-Content-Type-Options nosniff always;
+}
