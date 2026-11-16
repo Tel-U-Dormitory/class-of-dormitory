@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Participant;
+use App\Services\Exam\ExamMediaResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -26,7 +27,7 @@ class MediaController extends Controller
         abort_unless(Str::startsWith($path, 'exam-media/') && ! Str::contains($path, '..'), 404);
         abort_unless(Storage::disk('local')->exists($path), 404);
 
-        return Storage::disk('local')->response($path);
+        return app(ExamMediaResponse::class)->file($path);
     }
 
     public function participantPhoto(Participant $participant): Response

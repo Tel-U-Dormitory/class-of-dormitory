@@ -79,7 +79,7 @@ class ExamSessionPresenter
 
         $number = 0;
 
-        $presentedGroups = $groups->map(function (QuestionGroup $group) use ($observations, $now, &$number) {
+        $presentedGroups = $groups->map(function (QuestionGroup $group) use ($observations, $now, &$number, $attempt) {
             $observation = $observations->get($group->id);
             $observationState = $this->observationState($group, $observation, $now);
             $revealQuestions = $observationState === 'none' || $observationState === 'done';
@@ -93,12 +93,12 @@ class ExamSessionPresenter
                     'duration_seconds' => $group->observationSeconds(),
                     'ends_at' => $observationState === 'active' ? $observation->ends_at->getTimestampMs() : null,
                 ],
-                'stimulus' => $observationState === 'active' ? $this->stimulus($group) : null,
-                'questions' => $group->questions->map(function (Question $question) use ($revealQuestions, &$number) {
+                'stimulus' => $observationState === 'active' ? $this->stimulus($group, $attempt->id) : null,
+                'questions' => $group->questions->map(function (Question $question) use ($revealQuestions, &$number, $attempt) {
                     $number++;
 
                     return $revealQuestions
-                        ? $this->question($question, $number)
+                        ? $this->question($question, $number, $attempt->id)
                         : ['id' => $question->id, 'number' => $number, 'locked' => true];
                 })->values(),
             ];
@@ -129,23 +129,23 @@ class ExamSessionPresenter
         return $observation->isActive($now) ? 'active' : 'done';
     }
 
-    private function stimulus(QuestionGroup $group): array
+    private function stimulus(QuestionGroup $group, int $attemptId): array
     {
         return [
             'text' => $group->stimulus_type === StimulusType::Text ? $group->stimulus_text : null,
             'media_url' => in_array($group->stimulus_type, [StimulusType::Image, StimulusType::Video], true) && $group->stimulus_media_path
-                ? route('exam.media.stimulus', $group)
+                ? route('exam.media.stimulus', [$group, 'attempt' => $attemptId])
                 : null,
             'slides' => $group->stimulus_type === StimulusType::Flash
                 ? collect($group->stimulus_slides ?? [])->map(fn ($slide, $i) => [
-                    'url' => route('exam.media.slide', [$group, $i]),
+                    'url' => route('exam.media.slide', [$group, $i, 'attempt' => $attemptId]),
                     'duration' => (int) $slide['duration'],
                 ])->values()
                 : null,
         ];
     }
 
-    private function question(Question $question, int $number): array
+    private function question(Question $question, int $number, int $attemptId): array
     {
         return [
             'id' => $question->id,
@@ -153,12 +153,12 @@ class ExamSessionPresenter
             'locked' => false,
             'body' => $question->body,
             'is_latex' => $question->is_latex,
-            'image_url' => $question->image_path ? route('exam.media.question', $question) : null,
+            'image_url' => $question->image_path ? route('exam.media.question', [$question, 'attempt' => $attemptId]) : null,
             'options_are_images' => $question->options_are_images,
             'options' => $question->options->map(fn (QuestionOption $option) => [
                 'id' => $option->id,
                 'label' => $option->label(),
-                'content' => $question->options_are_images ? route('exam.media.option', $option) : $option->content,
+                'content' => $question->options_are_images ? route('exam.media.option', [$option, 'attempt' => $attemptId]) : $option->content,
             ])->values(),
         ];
     }

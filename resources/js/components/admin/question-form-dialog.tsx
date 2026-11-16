@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useForm } from '@inertiajs/react';
 import { LoaderCircle, Plus, Trash2 } from 'lucide-react';
 import { type BankQuestion } from './question-bank-types';
+import { UploadImagePreview } from './upload-image-preview';
 
 type OptionInput = { content: string; image: File | null; image_url: string | null };
 
@@ -68,7 +69,11 @@ export function QuestionFormDialog({
         }
     };
 
-    const setOption = (i: number, patch: Partial<OptionInput>) => form.setData('options', form.data.options.map((o, j) => (j === i ? { ...o, ...patch } : o)));
+    const setOption = (i: number, patch: Partial<OptionInput>) =>
+        form.setData(
+            'options',
+            form.data.options.map((o, j) => (j === i ? { ...o, ...patch } : o)),
+        );
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -83,7 +88,8 @@ export function QuestionFormDialog({
                         <div className="flex items-center justify-between">
                             <Label htmlFor="q-body">Pertanyaan</Label>
                             <label className="flex items-center gap-2 text-sm">
-                                <Checkbox checked={form.data.is_latex} onCheckedChange={(v) => form.setData('is_latex', v === true)} /> Mengandung LaTeX ($…$)
+                                <Checkbox checked={form.data.is_latex} onCheckedChange={(v) => form.setData('is_latex', v === true)} /> Mengandung
+                                LaTeX ($…$)
                             </label>
                         </div>
                         <Textarea id="q-body" rows={4} value={form.data.body} onChange={(e) => form.setData('body', e.target.value)} />
@@ -106,6 +112,7 @@ export function QuestionFormDialog({
                                 </Button>
                             </div>
                         )}
+                        {form.data.image && <UploadImagePreview file={form.data.image} />}
                         <Input id="q-image" type="file" accept="image/*" onChange={(e) => form.setData('image', e.target.files?.[0] ?? null)} />
                         <InputError message={errors.image} />
                     </div>
@@ -114,13 +121,23 @@ export function QuestionFormDialog({
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <Label>Pilihan jawaban · klik huruf untuk menandai kunci</Label>
                             <label className="flex items-center gap-2 text-sm">
-                                <Checkbox checked={form.data.options_are_images} onCheckedChange={(v) => form.setData('options_are_images', v === true)} /> Pilihan berupa gambar
+                                <Checkbox
+                                    checked={form.data.options_are_images}
+                                    onCheckedChange={(v) => form.setData('options_are_images', v === true)}
+                                />{' '}
+                                Pilihan berupa gambar
                             </label>
                         </div>
                         {form.data.options.map((option, i) => {
                             const isCorrect = form.data.correct_option === i;
                             return (
-                                <div key={i} className={cn('flex items-start gap-3 rounded-lg border p-2', isCorrect && 'border-emerald-500/60 bg-emerald-500/5')}>
+                                <div
+                                    key={i}
+                                    className={cn(
+                                        'flex items-start gap-3 rounded-lg border p-2',
+                                        isCorrect && 'border-emerald-500/60 bg-emerald-500/5',
+                                    )}
+                                >
                                     <button
                                         type="button"
                                         onClick={() => form.setData('correct_option', i)}
@@ -136,17 +153,26 @@ export function QuestionFormDialog({
                                     <div className="min-w-0 flex-1">
                                         {form.data.options_are_images ? (
                                             <div className="flex items-center gap-3">
-                                                {(option.image || option.image_url) && (
+                                                {option.image && <UploadImagePreview file={option.image} />}
+                                                {!option.image && option.image_url && (
                                                     <img
-                                                        src={option.image ? URL.createObjectURL(option.image) : option.image_url!}
+                                                        src={option.image_url ?? undefined}
                                                         alt=""
                                                         className="h-14 w-20 rounded border object-contain"
                                                     />
                                                 )}
-                                                <Input type="file" accept="image/*" onChange={(e) => setOption(i, { image: e.target.files?.[0] ?? null })} />
+                                                <Input
+                                                    type="file"
+                                                    accept="image/*"
+                                                    onChange={(e) => setOption(i, { image: e.target.files?.[0] ?? null })}
+                                                />
                                             </div>
                                         ) : (
-                                            <Input value={option.content} onChange={(e) => setOption(i, { content: e.target.value })} placeholder={`Pilihan ${String.fromCharCode(65 + i)}`} />
+                                            <Input
+                                                value={option.content}
+                                                onChange={(e) => setOption(i, { content: e.target.value })}
+                                                placeholder={`Pilihan ${String.fromCharCode(65 + i)}`}
+                                            />
                                         )}
                                         <InputError message={errors[`options.${i}.content`] ?? errors[`options.${i}.image`]} className="mt-1" />
                                     </div>
@@ -160,7 +186,8 @@ export function QuestionFormDialog({
                                                 form.setData((d) => ({
                                                     ...d,
                                                     options: d.options.filter((_, j) => j !== i),
-                                                    correct_option: d.correct_option === i ? 0 : d.correct_option > i ? d.correct_option - 1 : d.correct_option,
+                                                    correct_option:
+                                                        d.correct_option === i ? 0 : d.correct_option > i ? d.correct_option - 1 : d.correct_option,
                                                 }));
                                             }}
                                         >
@@ -171,7 +198,12 @@ export function QuestionFormDialog({
                             );
                         })}
                         {form.data.options.length < 6 && (
-                            <Button type="button" variant="outline" size="sm" onClick={() => form.setData('options', [...form.data.options, { content: '', image: null, image_url: null }])}>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => form.setData('options', [...form.data.options, { content: '', image: null, image_url: null }])}
+                            >
                                 <Plus /> Pilihan
                             </Button>
                         )}
@@ -181,15 +213,34 @@ export function QuestionFormDialog({
                     <div className="grid gap-4 sm:grid-cols-4">
                         <div className="grid gap-2">
                             <Label htmlFor="q-points">Poin benar</Label>
-                            <Input id="q-points" type="number" min={0} value={form.data.points} onChange={(e) => form.setData('points', Number(e.target.value))} />
+                            <Input
+                                id="q-points"
+                                type="number"
+                                min={0}
+                                value={form.data.points}
+                                onChange={(e) => form.setData('points', Number(e.target.value))}
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="q-penalty">Penalti salah</Label>
-                            <Input id="q-penalty" type="number" min={0} value={form.data.penalty} onChange={(e) => form.setData('penalty', Number(e.target.value))} />
+                            <Input
+                                id="q-penalty"
+                                type="number"
+                                min={0}
+                                value={form.data.penalty}
+                                onChange={(e) => form.setData('penalty', Number(e.target.value))}
+                            />
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="q-position">Urutan</Label>
-                            <Input id="q-position" type="number" min={0} value={form.data.position} onChange={(e) => form.setData('position', e.target.value)} placeholder="auto" />
+                            <Input
+                                id="q-position"
+                                type="number"
+                                min={0}
+                                value={form.data.position}
+                                onChange={(e) => form.setData('position', e.target.value)}
+                                placeholder="auto"
+                            />
                         </div>
                         <label className="flex items-end gap-2 pb-2 text-sm">
                             <Checkbox checked={form.data.is_active} onCheckedChange={(v) => form.setData('is_active', v === true)} /> Aktif
@@ -198,7 +249,12 @@ export function QuestionFormDialog({
 
                     <div className="grid gap-2">
                         <Label htmlFor="q-notes">Catatan internal</Label>
-                        <Input id="q-notes" value={form.data.notes} onChange={(e) => form.setData('notes', e.target.value)} placeholder="Tidak terlihat peserta" />
+                        <Input
+                            id="q-notes"
+                            value={form.data.notes}
+                            onChange={(e) => form.setData('notes', e.target.value)}
+                            placeholder="Tidak terlihat peserta"
+                        />
                     </div>
 
                     <DialogFooter>

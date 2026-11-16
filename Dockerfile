@@ -1,7 +1,7 @@
 FROM php:8.4-apache-bookworm AS php-base
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        libicu-dev libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev libpq-dev unzip git \
-    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+        libicu-dev libzip-dev libpng-dev libjpeg62-turbo-dev libfreetype6-dev libwebp-dev libpq-dev unzip git \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j"$(nproc)" pdo_mysql pdo_pgsql intl gd zip bcmath opcache \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /var/www/html

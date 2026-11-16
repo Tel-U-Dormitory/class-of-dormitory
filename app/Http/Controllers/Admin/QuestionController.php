@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\Concerns\GuardsQuestionBank;
 use App\Http\Controllers\Controller;
 use App\Models\Question;
 use App\Models\QuestionGroup;
+use App\Services\Exam\ExamImageStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -76,55 +77,70 @@ class QuestionController extends Controller
         $folder = 'exam-media/section-'.QuestionGroup::findOrFail($question->question_group_id)->exam_section_id;
         $asImages = (bool) ($data['options_are_images'] ?? false);
 
-        DB::transaction(function () use ($request, $question, $data, $folder, $asImages) {
-            $imagePath = $question->image_path;
+        $images = new ExamImageStorage;
+        $obsolete = [];
+        $wasImages = (bool) $question->options_are_images;
+        try {
+            DB::transaction(function () use ($request, $question, $data, $folder, $asImages, $images, &$obsolete, $wasImages) {
+                $imagePath = $question->image_path;
 
-            if ($request->hasFile('image')) {
-                $imagePath = $request->file('image')->store($folder, 'local');
-            } elseif ($data['remove_image'] ?? false) {
-                $imagePath = null;
-            }
-
-            if ($imagePath !== $question->image_path && $question->image_path) {
-                Storage::disk('local')->delete($question->image_path);
-            }
-
-            $question->fill([
-                'body' => $data['body'],
-                'is_latex' => (bool) ($data['is_latex'] ?? false),
-                'image_path' => $imagePath,
-                'options_are_images' => $asImages,
-                'points' => $data['points'],
-                'penalty' => $data['penalty'],
-                'is_active' => (bool) ($data['is_active'] ?? true),
-                'notes' => $data['notes'] ?? null,
-                'position' => $data['position'] ?? (Question::where('question_group_id', $question->question_group_id)->max('position') + 1),
-            ])->save();
-
-            $existing = $question->options()->get()->keyBy('position');
-
-            foreach ($data['options'] as $i => $option) {
-                $current = $existing->get($i);
-
-                if ($asImages) {
-                    $content = $request->hasFile("options.$i.image")
-                        ? $request->file("options.$i.image")->store($folder, 'local')
-                        : ($current && $current->content && Storage::disk('local')->exists($current->content) ? $current->content : null);
-                } else {
-                    $content = trim((string) ($option['content'] ?? ''));
+                if ($request->hasFile('image')) {
+                    $imagePath = $images->store($request->file('image'), $folder);
+                } elseif ($data['remove_image'] ?? false) {
+                    $imagePath = null;
                 }
 
-                if ($content === null || $content === '') {
-                    throw ValidationException::withMessages(["options.$i.content" => 'Pilihan '.chr(65 + $i).' wajib diisi.']);
+                if ($imagePath !== $question->image_path && $question->image_path) {
+                    $obsolete[] = $question->image_path;
                 }
 
-                $question->options()->updateOrCreate(
-                    ['position' => $i],
-                    ['content' => $content, 'is_correct' => $i === (int) $data['correct_option']],
-                );
-            }
+                $question->fill([
+                    'body' => $data['body'],
+                    'is_latex' => (bool) ($data['is_latex'] ?? false),
+                    'image_path' => $imagePath,
+                    'options_are_images' => $asImages,
+                    'points' => $data['points'],
+                    'penalty' => $data['penalty'],
+                    'is_active' => (bool) ($data['is_active'] ?? true),
+                    'notes' => $data['notes'] ?? null,
+                    'position' => $data['position'] ?? (Question::where('question_group_id', $question->question_group_id)->max('position') + 1),
+                ])->save();
 
-            $question->options()->where('position', '>=', count($data['options']))->delete();
-        });
+                $existing = $question->options()->get()->keyBy('position');
+
+                foreach ($data['options'] as $i => $option) {
+                    $current = $existing->get($i);
+
+                    if ($asImages) {
+                        $content = $request->hasFile("options.$i.image")
+                            ? $images->store($request->file("options.$i.image"), $folder)
+                            : ($current && $current->content && Storage::disk('local')->exists($current->content) ? $current->content : null);
+                    } else {
+                        $content = trim((string) ($option['content'] ?? ''));
+                    }
+
+                    if ($content === null || $content === '') {
+                        throw ValidationException::withMessages(["options.$i.content" => 'Pilihan '.chr(65 + $i).' wajib diisi.']);
+                    }
+
+                    if ($current && $wasImages && $current->content !== $content) {
+                        $obsolete[] = $current->content;
+                    }
+                    $question->options()->updateOrCreate(
+                        ['position' => $i],
+                        ['content' => $content, 'is_correct' => $i === (int) $data['correct_option']],
+                    );
+                }
+
+                if ($wasImages) {
+                    $obsolete = array_merge($obsolete, $question->options()->where('position', '>=', count($data['options']))->pluck('content')->all());
+                }
+                $question->options()->where('position', '>=', count($data['options']))->delete();
+                DB::afterCommit(fn () => rescue(fn () => Storage::disk('local')->delete($obsolete)));
+            });
+        } catch (\Throwable $e) {
+            $images->discard();
+            throw $e;
+        }
     }
 }

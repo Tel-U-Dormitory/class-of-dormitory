@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Exam;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Exam\Concerns\ResolvesAttempt;
+use App\Models\ExamAttempt;
 use App\Models\Question;
 use App\Models\QuestionGroup;
 use App\Models\QuestionOption;
 use App\Services\Exam\ExamMediaGate;
+use App\Services\Exam\ExamMediaResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -17,7 +18,22 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class MediaController extends Controller
 {
-    use ResolvesAttempt;
+    use ResolvesAttempt { attempt as legacyAttempt; }
+
+    protected function attempt(Request $request): ExamAttempt
+    {
+        // Old open pages remain compatible; newly presented URLs pin the attempt.
+        if (! $request->has('attempt')) {
+            return $this->legacyAttempt($request);
+        }
+        $data = $request->validate(['attempt' => ['required', 'integer', 'min:1']]);
+
+        return ExamAttempt::query()
+            ->select(['id', 'exam_id', 'participant_id', 'status', 'current_section_id'])
+            ->whereKey($data['attempt'])
+            ->where('participant_id', $request->user('participant')->id)
+            ->firstOrFail();
+    }
 
     public function __construct(private ExamMediaGate $gate) {}
 
@@ -53,10 +69,6 @@ class MediaController extends Controller
 
     private function file(string $path): Response
     {
-        abort_unless(Storage::disk('local')->exists($path), 404);
-
-        return Storage::disk('local')->response($path, null, [
-            'Cache-Control' => 'private, no-store',
-        ]);
+        return app(ExamMediaResponse::class)->file($path);
     }
 }

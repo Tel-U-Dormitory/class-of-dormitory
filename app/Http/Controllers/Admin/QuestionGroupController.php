@@ -7,8 +7,10 @@ use App\Http\Controllers\Admin\Concerns\GuardsQuestionBank;
 use App\Http\Controllers\Controller;
 use App\Models\ExamSection;
 use App\Models\QuestionGroup;
+use App\Services\Exam\ExamImageStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -68,49 +70,63 @@ class QuestionGroupController extends Controller
         $folder = 'exam-media/section-'.$group->exam_section_id;
         $oldPaths = collect($group->stimulus_slides ?? [])->pluck('path')->push($group->stimulus_media_path)->filter();
 
-        $mediaPath = null;
+        $images = new ExamImageStorage;
+        $videoPath = null;
+        try {
+            DB::transaction(function () use ($request, $group, $data, $type, $folder, $oldPaths, $images, &$videoPath) {
+                $mediaPath = null;
 
-        if (in_array($type, [StimulusType::Image, StimulusType::Video], true)) {
-            $mediaPath = $request->hasFile('stimulus_media')
-                ? $request->file('stimulus_media')->store($folder, 'local')
-                : $group->stimulus_media_path;
+                if (in_array($type, [StimulusType::Image, StimulusType::Video], true)) {
+                    $mediaPath = $request->hasFile('stimulus_media')
+                        ? ($type === StimulusType::Image
+                            ? $images->store($request->file('stimulus_media'), $folder)
+                            : ($videoPath = $request->file('stimulus_media')->store($folder, 'local')))
+                        : $group->stimulus_media_path;
 
-            if (! $mediaPath) {
-                throw ValidationException::withMessages(['stimulus_media' => 'Unggah file materi observasi.']);
+                    if (! $mediaPath) {
+                        throw ValidationException::withMessages(['stimulus_media' => 'Unggah file materi observasi.']);
+                    }
+                }
+
+                $slides = null;
+
+                if ($type === StimulusType::Flash) {
+                    $existing = collect($group->stimulus_slides ?? [])->pluck('path');
+                    $slides = collect($data['slides'] ?? [])->map(function ($slide, $i) use ($request, $folder, $existing, $images) {
+                        $path = $request->hasFile("slides.$i.image")
+                            ? $images->store($request->file("slides.$i.image"), $folder)
+                            : ($existing->contains($slide['path'] ?? null) ? $slide['path'] : null);
+
+                        return $path ? ['path' => $path, 'duration' => (int) $slide['duration']] : null;
+                    })->filter()->values()->all();
+
+                    if (! $slides) {
+                        throw ValidationException::withMessages(['slides' => 'Tambahkan minimal satu slide kilasan.']);
+                    }
+                }
+
+                $group->fill([
+                    'title' => $data['title'],
+                    'kind' => $data['kind'] ?? null,
+                    'position' => $data['position'] ?? (QuestionGroup::where('exam_section_id', $group->exam_section_id)->max('position') + 1),
+                    'stimulus_type' => $type,
+                    'stimulus_text' => $type === StimulusType::Text ? $data['stimulus_text'] : null,
+                    'stimulus_duration_seconds' => in_array($type, [StimulusType::Text, StimulusType::Image, StimulusType::Video], true)
+                        ? $data['stimulus_duration_seconds']
+                        : null,
+                    'stimulus_media_path' => $mediaPath,
+                    'stimulus_slides' => $slides,
+                ])->save();
+
+                $keptPaths = collect($slides ?? [])->pluck('path')->push($mediaPath)->filter();
+                DB::afterCommit(fn () => rescue(fn () => Storage::disk('local')->delete($oldPaths->diff($keptPaths)->all())));
+            });
+        } catch (\Throwable $e) {
+            $images->discard();
+            if ($videoPath) {
+                Storage::disk('local')->delete($videoPath);
             }
+            throw $e;
         }
-
-        $slides = null;
-
-        if ($type === StimulusType::Flash) {
-            $existing = collect($group->stimulus_slides ?? [])->pluck('path');
-            $slides = collect($data['slides'] ?? [])->map(function ($slide, $i) use ($request, $folder, $existing) {
-                $path = $request->hasFile("slides.$i.image")
-                    ? $request->file("slides.$i.image")->store($folder, 'local')
-                    : ($existing->contains($slide['path'] ?? null) ? $slide['path'] : null);
-
-                return $path ? ['path' => $path, 'duration' => (int) $slide['duration']] : null;
-            })->filter()->values()->all();
-
-            if (! $slides) {
-                throw ValidationException::withMessages(['slides' => 'Tambahkan minimal satu slide kilasan.']);
-            }
-        }
-
-        $group->fill([
-            'title' => $data['title'],
-            'kind' => $data['kind'] ?? null,
-            'position' => $data['position'] ?? (QuestionGroup::where('exam_section_id', $group->exam_section_id)->max('position') + 1),
-            'stimulus_type' => $type,
-            'stimulus_text' => $type === StimulusType::Text ? $data['stimulus_text'] : null,
-            'stimulus_duration_seconds' => in_array($type, [StimulusType::Text, StimulusType::Image, StimulusType::Video], true)
-                ? $data['stimulus_duration_seconds']
-                : null,
-            'stimulus_media_path' => $mediaPath,
-            'stimulus_slides' => $slides,
-        ])->save();
-
-        $keptPaths = collect($slides ?? [])->pluck('path')->push($mediaPath)->filter();
-        Storage::disk('local')->delete($oldPaths->diff($keptPaths)->all());
     }
 }
