@@ -143,7 +143,9 @@ class ChallengeFlowTest extends TestCase
 
         $red = $challenge->teams()->firstWhere('name', 'Gedung Merah');
         $this->postJson(route('arena.submit', $challenge), ['entrant_id' => $red->id, 'answer' => '1234'])->assertOk()->assertJson(['correct' => true]);
-        $this->postJson(route('arena.submit', $challenge), ['entrant_id' => $a->id, 'answer' => '1234'])->assertNotFound();
+        // Participant and team IDs can overlap; use an actually missing team ID.
+        $missingTeamId = $challenge->teams()->max('id') + 1;
+        $this->postJson(route('arena.submit', $challenge), ['entrant_id' => $missingTeamId, 'answer' => '1234'])->assertNotFound();
 
         $this->post(route('admin.challenges.bracket', $challenge), ['max_winners' => 1, 'failed_status' => 'eliminated']);
 

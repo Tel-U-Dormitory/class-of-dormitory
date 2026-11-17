@@ -54,10 +54,10 @@ Route::middleware(['auth:participant', 'participant.single-session'])->group(fun
         Route::post('heartbeat', [AnswerController::class, 'heartbeat'])->middleware('throttle:exam-heartbeat')->name('heartbeat');
         Route::post('sinkron', [AnswerController::class, 'checkpoint'])->middleware('throttle:exam-sync')->name('checkpoint');
 
-        Route::get('media/stimulus/{group}', [MediaController::class, 'stimulus'])->middleware(MeasureExamMedia::class)->name('media.stimulus');
-        Route::get('media/slide/{group}/{index}', [MediaController::class, 'slide'])->whereNumber('index')->middleware(MeasureExamMedia::class)->name('media.slide');
-        Route::get('media/soal/{question}', [MediaController::class, 'question'])->middleware(MeasureExamMedia::class)->name('media.question');
-        Route::get('media/opsi/{option}', [MediaController::class, 'option'])->middleware(MeasureExamMedia::class)->name('media.option');
+        Route::get('media/stimulus/{group}', [MediaController::class, 'stimulus'])->whereNumber('group')->middleware(MeasureExamMedia::class)->name('media.stimulus');
+        Route::get('media/slide/{group}/{index}', [MediaController::class, 'slide'])->whereNumber(['group', 'index'])->middleware(MeasureExamMedia::class)->name('media.slide');
+        Route::get('media/soal/{question}', [MediaController::class, 'question'])->whereNumber('question')->middleware(MeasureExamMedia::class)->name('media.question');
+        Route::get('media/opsi/{option}', [MediaController::class, 'option'])->whereNumber('option')->middleware(MeasureExamMedia::class)->name('media.option');
     });
 });
 

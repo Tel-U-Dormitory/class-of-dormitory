@@ -3,65 +3,55 @@
 namespace App\Services\Exam;
 
 use App\Enums\AttemptStatus;
-use App\Models\ExamAttempt;
-use App\Models\Question;
-use App\Models\QuestionGroup;
+use App\Enums\StimulusType;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Log;
 
-/**
- * Menentukan apakah peserta boleh mengunduh media tertentu saat ini.
- */
 class ExamMediaGate
 {
-    public function canViewStimulus(ExamAttempt $attempt, QuestionGroup $group): bool
+    public function canViewStimulus(object $media): bool
     {
-        if (! $this->groupIsCurrent($attempt, $group)) {
-            return $this->deny($attempt, $group, 'attempt_or_section_mismatch');
+        if (! $this->groupIsCurrent($media)) {
+            return $this->deny($media, 'attempt_or_section_mismatch');
         }
 
-        // Toleransi kecil agar gambar yang sedang dimuat saat waktu hampir habis tetap terkirim.
-        $allowed = $attempt->observations()
-            ->where('question_group_id', $group->id)
-            ->where('ends_at', '>', now()->subSeconds(2))
-            ->exists();
+        // Preserve the two-second tolerance for a download at observation end.
+        $allowed = $media->observation_ends_at !== null
+            && CarbonImmutable::parse($media->observation_ends_at)->gt(now()->subSeconds(2));
 
-        return $allowed ?: $this->deny($attempt, $group, 'observation_not_active');
+        return $allowed ?: $this->deny($media, 'observation_not_active');
     }
 
-    public function canViewQuestion(ExamAttempt $attempt, Question $question): bool
+    public function canViewQuestion(object $media): bool
     {
-        $group = $question->group;
-
-        if (! $question->is_active || ! $this->groupIsCurrent($attempt, $group)) {
-            return $this->deny($attempt, $group, ! $question->is_active ? 'question_inactive' : 'attempt_or_section_mismatch', $question->id);
+        if (! $media->is_active || ! $this->groupIsCurrent($media)) {
+            return $this->deny($media, ! $media->is_active ? 'question_inactive' : 'attempt_or_section_mismatch');
         }
 
-        if (! $group->requiresObservation()) {
+        if (! StimulusType::from($media->stimulus_type)->requiresObservation()) {
             return true;
         }
 
-        $allowed = $attempt->observations()
-            ->where('question_group_id', $group->id)
-            ->where('ends_at', '<=', now())
-            ->exists();
+        $allowed = $media->observation_ends_at !== null
+            && CarbonImmutable::parse($media->observation_ends_at)->lte(now());
 
-        return $allowed ?: $this->deny($attempt, $group, 'observation_not_finished', $question->id);
+        return $allowed ?: $this->deny($media, 'observation_not_finished');
     }
 
-    private function deny(ExamAttempt $attempt, QuestionGroup $group, string $reason, ?int $questionId = null): bool
+    private function groupIsCurrent(object $media): bool
+    {
+        return $media->status === AttemptStatus::InProgress->value
+            && (int) $media->exam_section_id === (int) $media->current_section_id;
+    }
+
+    private function deny(object $media, string $reason): bool
     {
         Log::notice('exam_media_denied', [
-            'reason' => $reason, 'attempt_id' => $attempt->id,
-            'section_id' => $attempt->current_section_id, 'group_id' => $group->id,
-            'question_id' => $questionId,
+            'reason' => $reason, 'attempt_id' => $media->attempt_id,
+            'section_id' => $media->current_section_id, 'group_id' => $media->group_id,
+            'question_id' => $media->question_id ?? null,
         ]);
 
         return false;
-    }
-
-    private function groupIsCurrent(ExamAttempt $attempt, QuestionGroup $group): bool
-    {
-        return $attempt->status === AttemptStatus::InProgress
-            && $group->exam_section_id === $attempt->current_section_id;
     }
 }

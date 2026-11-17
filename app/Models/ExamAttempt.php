@@ -6,6 +6,7 @@ use App\Enums\AttemptStatus;
 use App\Enums\Pillar;
 use App\Enums\SubmitReason;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -81,6 +82,21 @@ class ExamAttempt extends Model
     public function isSubmitted(): bool
     {
         return $this->status === AttemptStatus::Submitted;
+    }
+
+    public function scopeDueForSync(Builder $query): void
+    {
+        $query->where(function (Builder $due) {
+            $due->where(function (Builder $working) {
+                $working->where('status', AttemptStatus::InProgress)
+                    ->whereHas('sections', fn (Builder $section) => $section
+                        ->whereColumn('attempt_sections.exam_section_id', 'exam_attempts.current_section_id')
+                        ->whereNull('finished_at')
+                        ->where('deadline_at', '<=', now()->subSeconds((int) config('exam.grace_seconds'))));
+            })->orWhere(function (Builder $resting) {
+                $resting->where('status', AttemptStatus::OnBreak)->where('break_ends_at', '<=', now());
+            });
+        });
     }
 
     public function currentAttemptSection(): ?AttemptSection
