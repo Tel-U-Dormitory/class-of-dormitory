@@ -443,6 +443,39 @@ class ExamEngine
         }
     }
 
+    public function heartbeat(ExamAttempt $attempt): ExamAttempt
+    {
+        $attempt->loadMissing('sections');
+        $current = $attempt->currentAttemptSection();
+        $now = $this->now();
+        $due = ($attempt->status === AttemptStatus::OnBreak && $attempt->break_ends_at?->lte($now))
+            || ($attempt->status === AttemptStatus::InProgress && $current && ! $current->isFinished()
+                && $now->gte($current->deadline_at->copy()->addSeconds((int) config('exam.grace_seconds'))));
+
+        if ($due) {
+            // Keep the existing locked transition and recheck the deadline inside it.
+            $attempt = $this->sync($attempt)->load('sections');
+        }
+
+        // A normal heartbeat is a read snapshot, not a status-changing transaction.
+        // Avoid duplicate writes immediately after another request touched this attempt.
+        $cutoff = $now->subSeconds(15);
+        if (! $attempt->isSubmitted() && (! $attempt->last_seen_at || $attempt->last_seen_at->lte($cutoff))) {
+            $updated = ExamAttempt::whereKey($attempt->id)
+                ->where('status', $attempt->status)
+                ->where('current_section_id', $attempt->current_section_id)
+                ->where(fn ($query) => $query->whereNull('last_seen_at')->orWhere('last_seen_at', '<=', $cutoff))
+                ->update(['last_seen_at' => $now]);
+            if (! $updated) {
+                return $attempt->refresh()->load('sections');
+            }
+            $attempt->last_seen_at = $now;
+            $attempt->syncOriginalAttribute('last_seen_at');
+        }
+
+        return $attempt;
+    }
+
     public function touch(ExamAttempt $attempt): ExamAttempt
     {
         $attempt = $this->sync($attempt);

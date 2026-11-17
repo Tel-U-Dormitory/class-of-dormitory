@@ -23,7 +23,7 @@ class MeasureExamMedia
         } finally {
             Log::info('exam_media_request', [
                 'route' => $request->route()?->getName(),
-                'media_id' => $request->route('question')?->id ?? $request->route('option')?->id ?? $request->route('group')?->id,
+                'media_id' => $request->route('question') ?? $request->route('option') ?? $request->route('group'),
                 'status' => $response?->getStatusCode(),
                 'duration_ms' => round((hrtime(true) - $started) / 1e6, 2),
                 'database_ms' => round(DB::connection()->totalQueryDuration() - $before, 2),

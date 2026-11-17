@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\Schedule;
 Artisan::command('exam:sync-attempts', function (ExamEngine $engine) {
     $count = 0;
 
-    ExamAttempt::whereIn('status', [AttemptStatus::InProgress, AttemptStatus::OnBreak])
-        ->lazyById()
+    ExamAttempt::dueForSync()
+        ->lazyById(100)
         ->each(function (ExamAttempt $attempt) use ($engine, &$count) {
             $before = $attempt->status;
             $after = $engine->sync($attempt);

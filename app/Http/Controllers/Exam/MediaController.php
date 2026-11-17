@@ -4,67 +4,82 @@ namespace App\Http\Controllers\Exam;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\Exam\Concerns\ResolvesAttempt;
-use App\Models\ExamAttempt;
-use App\Models\Question;
-use App\Models\QuestionGroup;
-use App\Models\QuestionOption;
 use App\Services\Exam\ExamMediaGate;
 use App\Services\Exam\ExamMediaResponse;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
-/**
- * Media soal disimpan privat dan hanya dikirim saat peserta berhak melihatnya.
- */
 class MediaController extends Controller
 {
     use ResolvesAttempt { attempt as legacyAttempt; }
 
-    protected function attempt(Request $request): ExamAttempt
-    {
-        // Old open pages remain compatible; newly presented URLs pin the attempt.
-        if (! $request->has('attempt')) {
-            return $this->legacyAttempt($request);
-        }
-        $data = $request->validate(['attempt' => ['required', 'integer', 'min:1']]);
-
-        return ExamAttempt::query()
-            ->select(['id', 'exam_id', 'participant_id', 'status', 'current_section_id'])
-            ->whereKey($data['attempt'])
-            ->where('participant_id', $request->user('participant')->id)
-            ->firstOrFail();
-    }
-
     public function __construct(private ExamMediaGate $gate) {}
 
-    public function stimulus(Request $request, QuestionGroup $group): Response
+    private function metadata(Request $request): Builder
     {
-        abort_unless($group->stimulus_media_path && $this->gate->canViewStimulus($this->attempt($request), $group), 403);
+        $attemptId = $request->has('attempt')
+            ? $request->validate(['attempt' => ['required', 'integer', 'min:1']])['attempt']
+            : $this->legacyAttempt($request)->id;
 
-        return $this->file($group->stimulus_media_path);
+        // One database snapshot; never cache a participant's current permission.
+        return DB::table('question_groups as g')
+            ->crossJoin('exam_attempts as a')
+            ->leftJoin('attempt_observations as observation', function ($join) {
+                $join->on('observation.exam_attempt_id', '=', 'a.id')
+                    ->on('observation.question_group_id', '=', 'g.id');
+            })
+            ->where('a.id', $attemptId)
+            ->where('a.participant_id', $request->user('participant')->id)
+            ->select(['g.id as group_id', 'g.exam_section_id', 'g.stimulus_type',
+                'a.id as attempt_id', 'a.status', 'a.current_section_id',
+                'observation.ends_at as observation_ends_at']);
     }
 
-    public function slide(Request $request, QuestionGroup $group, int $index): Response
+    public function stimulus(Request $request, int $group): Response
     {
-        $path = $group->stimulus_slides[$index]['path'] ?? null;
-        abort_unless($path && $this->gate->canViewStimulus($this->attempt($request), $group), 403);
+        $media = $this->metadata($request)->where('g.id', $group)
+            ->addSelect('g.stimulus_media_path as media_path')->first();
+        abort_unless($media, 404);
+        abort_unless($media->media_path && $this->gate->canViewStimulus($media), 403);
+
+        return $this->file($media->media_path);
+    }
+
+    public function slide(Request $request, int $group, int $index): Response
+    {
+        $media = $this->metadata($request)->where('g.id', $group)
+            ->addSelect('g.stimulus_slides')->first();
+        abort_unless($media, 404);
+        $slides = json_decode($media->stimulus_slides ?? '[]', true);
+        $path = $slides[$index]['path'] ?? null;
+        abort_unless($path && $this->gate->canViewStimulus($media), 403);
 
         return $this->file($path);
     }
 
-    public function question(Request $request, Question $question): Response
+    public function question(Request $request, int $question): Response
     {
-        abort_unless($question->image_path && $this->gate->canViewQuestion($this->attempt($request), $question), 403);
+        $media = $this->metadata($request)->join('questions as q', 'q.question_group_id', '=', 'g.id')
+            ->where('q.id', $question)
+            ->addSelect(['q.id as question_id', 'q.is_active', 'q.image_path as media_path'])->first();
+        abort_unless($media, 404);
+        abort_unless($media->media_path && $this->gate->canViewQuestion($media), 403);
 
-        return $this->file($question->image_path);
+        return $this->file($media->media_path);
     }
 
-    public function option(Request $request, QuestionOption $option): Response
+    public function option(Request $request, int $option): Response
     {
-        $question = $option->question;
-        abort_unless($question->options_are_images && $this->gate->canViewQuestion($this->attempt($request), $question), 403);
+        $media = $this->metadata($request)->join('questions as q', 'q.question_group_id', '=', 'g.id')
+            ->join('question_options as choice', 'choice.question_id', '=', 'q.id')
+            ->where('choice.id', $option)
+            ->addSelect(['q.id as question_id', 'q.is_active', 'q.options_are_images', 'choice.content as media_path'])->first();
+        abort_unless($media, 404);
+        abort_unless($media->options_are_images && $this->gate->canViewQuestion($media), 403);
 
-        return $this->file($option->content);
+        return $this->file($media->media_path);
     }
 
     private function file(string $path): Response
