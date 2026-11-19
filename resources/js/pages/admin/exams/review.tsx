@@ -380,7 +380,7 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                             </div>
                                         )}
 
-                                        {groupQuestions.map((q, qIndex) => {
+                                        {groupQuestions.map((q) => {
                                             const questionNumber = allQuestions.findIndex((item) => item.id === q.id) + 1;
 
                                             return (

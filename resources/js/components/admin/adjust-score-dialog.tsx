@@ -34,39 +34,38 @@ export function AdjustScoreDialog({
     section: SectionAdjustmentData | null;
     participantName: string;
 }) {
-    const form = useForm({
+    const { data, setData, clearErrors, errors: formErrors, processing, patch } = useForm({
         adjustment_type: section?.adjustment_type ?? 'none',
         manual_score: section?.manual_score ? String(section.manual_score) : '0',
         notes: section?.adjustment_notes ?? '',
     });
 
     useEffect(() => {
-        if (section) {
-            form.setData({
-                adjustment_type: section.adjustment_type ?? 'none',
-                manual_score: section.adjustment_type ? String(section.manual_score) : '0',
-                notes: section.adjustment_notes ?? '',
-            });
-            form.clearErrors();
-        }
-    }, [section?.id, section?.adjustment_type, section?.manual_score, section?.adjustment_notes]);
+        if (!section) return;
+        setData({
+            adjustment_type: section.adjustment_type ?? 'none',
+            manual_score: section.adjustment_type ? String(section.manual_score) : '0',
+            notes: section.adjustment_notes ?? '',
+        });
+        clearErrors();
+    }, [section, setData, clearErrors]);
 
     if (!section) return null;
 
-    const errors = form.errors as Record<string, string | undefined>;
+    const errors = formErrors as Record<string, string | undefined>;
     const scoreWeb = section.score_web ?? 0;
-    const manualScoreNum = parseInt(form.data.manual_score || '0', 10) || 0;
+    const manualScoreNum = parseInt(data.manual_score || '0', 10) || 0;
 
     let previewFinal = scoreWeb;
-    if (form.data.adjustment_type === 'addition') {
+    if (data.adjustment_type === 'addition') {
         previewFinal = scoreWeb + manualScoreNum;
-    } else if (form.data.adjustment_type === 'overwrite') {
+    } else if (data.adjustment_type === 'overwrite') {
         previewFinal = manualScoreNum;
     }
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        form.patch(route('admin.attempts.sections.adjust', [examId, attemptId, section.id]), {
+        patch(route('admin.attempts.sections.adjust', [examId, attemptId, section.id]), {
             preserveScroll: true,
             onSuccess: () => onOpenChange(false),
         });
@@ -102,8 +101,8 @@ export function AdjustScoreDialog({
                         <Label htmlFor="adj-type" className="text-xs">Mode Penyesuaian</Label>
                         <NativeSelect
                             id="adj-type"
-                            value={form.data.adjustment_type}
-                            onChange={(e) => form.setData('adjustment_type', e.target.value as 'none' | 'addition' | 'overwrite')}
+                            value={data.adjustment_type}
+                            onChange={(e) => setData('adjustment_type', e.target.value as 'none' | 'addition' | 'overwrite')}
                             className="text-xs"
                         >
                             <option value="none">Tidak Ada (Murni Nilai Web)</option>
@@ -114,21 +113,21 @@ export function AdjustScoreDialog({
                     </div>
 
                     {/* Input Nilai Manual jika mode bukan none */}
-                    {form.data.adjustment_type !== 'none' && (
+                    {data.adjustment_type !== 'none' && (
                         <div className="space-y-1.5">
                             <Label htmlFor="manual-score" className="text-xs">
-                                {form.data.adjustment_type === 'addition' ? 'Nilai Tambahan dari Kertas' : 'Nilai Baru (Menggantikan Nilai Lama)'}
+                                {data.adjustment_type === 'addition' ? 'Nilai Tambahan dari Kertas' : 'Nilai Baru (Menggantikan Nilai Lama)'}
                             </Label>
                             <Input
                                 id="manual-score"
                                 type="number"
-                                value={form.data.manual_score}
-                                onChange={(e) => form.setData('manual_score', e.target.value)}
+                                value={data.manual_score}
+                                onChange={(e) => setData('manual_score', e.target.value)}
                                 placeholder="0"
                                 className="text-xs tabular-nums"
                             />
                             <p className="text-muted-foreground text-[0.7rem]">
-                                {form.data.adjustment_type === 'addition'
+                                {data.adjustment_type === 'addition'
                                     ? 'Nilai ini akan ditambahkan ke nilai web peserta di pilar ini.'
                                     : 'Nilai lama akan diabaikan dan pilar ini memakai nilai baru di atas.'}
                             </p>
@@ -142,8 +141,8 @@ export function AdjustScoreDialog({
                         <Textarea
                             id="notes"
                             rows={2}
-                            value={form.data.notes}
-                            onChange={(e) => form.setData('notes', e.target.value)}
+                            value={data.notes}
+                            onChange={(e) => setData('notes', e.target.value)}
                             placeholder="Contoh: Koreksi manual LJK kertas nomor 15-30"
                             className="text-xs"
                         />
@@ -157,13 +156,13 @@ export function AdjustScoreDialog({
                             <span className="text-sm font-bold text-primary tabular-nums">{previewFinal}</span>
                         </div>
                         <div className="text-muted-foreground mt-1 text-[0.7rem]">
-                            {form.data.adjustment_type === 'addition' && (
+                            {data.adjustment_type === 'addition' && (
                                 <span>Rumus: {scoreWeb} (Web) + {manualScoreNum} (Kertas) = {previewFinal}</span>
                             )}
-                            {form.data.adjustment_type === 'overwrite' && (
+                            {data.adjustment_type === 'overwrite' && (
                                 <span>Rumus: Nilai web diabaikan, nilai akhir disetel ke {previewFinal} (Timpa)</span>
                             )}
-                            {form.data.adjustment_type === 'none' && (
+                            {data.adjustment_type === 'none' && (
                                 <span>Murni menggunakan nilai web: {scoreWeb}</span>
                             )}
                         </div>
@@ -173,8 +172,8 @@ export function AdjustScoreDialog({
                         <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
                             Batal
                         </Button>
-                        <Button type="submit" size="sm" disabled={form.processing}>
-                            {form.processing && <LoaderCircle className="size-3.5 animate-spin" />}
+                        <Button type="submit" size="sm" disabled={processing}>
+                            {processing && <LoaderCircle className="size-3.5 animate-spin" />}
                             Simpan Perubahan
                         </Button>
                     </DialogFooter>
