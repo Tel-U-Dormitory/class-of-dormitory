@@ -8,7 +8,20 @@ import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Crown, Download, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Crown, Download, Eye, EyeOff, FileText, Sparkles } from 'lucide-react';
+import { useState } from 'react';
+import { AdjustScoreDialog, type SectionAdjustmentData } from '@/components/admin/adjust-score-dialog';
+
+interface SectionAdjustmentItem {
+    attempt_section_id: number;
+    score: number;
+    score_web: number;
+    adjustment_type: 'addition' | 'overwrite' | null;
+    manual_score: number;
+    adjustment_notes: string | null;
+    adjusted_by: string | null;
+    adjusted_at: string | null;
+}
 
 interface Row {
     attempt_id: number;
@@ -20,6 +33,7 @@ interface Row {
     major: string;
     building: string;
     section_scores: Record<string, number | null>;
+    section_adjustments?: Record<string, SectionAdjustmentItem>;
     score_total: number;
     correct_count: number;
     wrong_count: number;
@@ -60,6 +74,18 @@ export default function Results({ exam, rows, buildings, filters, castRules, pil
     const { confirm } = useConfirmation();
     const { auth } = usePage<SharedData>().props;
     const isAdmin = auth.user?.role === 'admin';
+
+    const [adjustDialog, setAdjustDialog] = useState<{
+        open: boolean;
+        attemptId: number;
+        participantName: string;
+        section: SectionAdjustmentData | null;
+    }>({
+        open: false,
+        attemptId: 0,
+        participantName: '',
+        section: null,
+    });
 
     return (
         <AppLayout
@@ -147,10 +173,11 @@ export default function Results({ exam, rows, buildings, filters, castRules, pil
                             <Th className="text-right">Tab</Th>
                             <Th>Cast</Th>
                             {isAdmin && <Th>Spesialis</Th>}
+                            <Th className="text-right">Aksi</Th>
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.length === 0 && <EmptyRow colSpan={10 + exam.sections.length}>Belum ada peserta yang menyelesaikan ujian.</EmptyRow>}
+                        {rows.length === 0 && <EmptyRow colSpan={11 + exam.sections.length}>Belum ada peserta yang menyelesaikan ujian.</EmptyRow>}
                         {rows.map((r) => {
                             const castType = exam.cast_applied ? r.cast_type : r.cast_preview;
                             const cast = castType !== null;
@@ -174,11 +201,56 @@ export default function Results({ exam, rows, buildings, filters, castRules, pil
                                             {r.nim} · {r.building}
                                         </p>
                                     </Td>
-                                    {exam.sections.map((s) => (
-                                        <Td key={s.id} className="text-right tabular-nums">
-                                            {r.section_scores[s.id] ?? 0}
-                                        </Td>
-                                    ))}
+                                    {exam.sections.map((s) => {
+                                        const adj = r.section_adjustments?.[s.id];
+                                        const isAdjusted = adj && adj.adjustment_type !== null;
+                                        const scoreVal = r.section_scores[s.id] ?? 0;
+
+                                        return (
+                                            <Td key={s.id} className="text-right tabular-nums">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    {isAdmin ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                setAdjustDialog({
+                                                                    open: true,
+                                                                    attemptId: r.attempt_id,
+                                                                    participantName: r.full_name,
+                                                                    section: {
+                                                                        id: s.id,
+                                                                        label: s.label,
+                                                                        score: scoreVal,
+                                                                        score_web: adj?.score_web ?? scoreVal,
+                                                                        adjustment_type: adj?.adjustment_type ?? null,
+                                                                        manual_score: adj?.manual_score ?? 0,
+                                                                        adjustment_notes: adj?.adjustment_notes ?? null,
+                                                                    },
+                                                                })
+                                                            }
+                                                            className="group inline-flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                                                            title={
+                                                                isAdjusted
+                                                                    ? `Disesuaikan (${adj?.adjustment_type === 'addition' ? 'Tambah' : 'Timpa'}): Web ${adj?.score_web}${adj?.adjustment_notes ? ` - "${adj.adjustment_notes}"` : ''} - Klik untuk ubah`
+                                                                    : 'Klik untuk sesuaikan nilai'
+                                                            }
+                                                        >
+                                                            <span className={cn(isAdjusted && 'font-semibold text-primary underline decoration-dotted')}>
+                                                                {scoreVal}
+                                                            </span>
+                                                            {isAdjusted && (
+                                                                <span className="rounded bg-amber-500/15 px-1 py-0.2 text-[0.65rem] font-semibold text-amber-700 dark:text-amber-300">
+                                                                    {adj?.adjustment_type === 'addition' ? `+${adj.manual_score}` : 'Timpa'}
+                                                                </span>
+                                                            )}
+                                                        </button>
+                                                    ) : (
+                                                        <span>{scoreVal}</span>
+                                                    )}
+                                                </div>
+                                            </Td>
+                                        );
+                                    })}
                                     <Td className="text-right text-base font-semibold tabular-nums">{r.score_total}</Td>
                                     <Td className="text-muted-foreground text-right whitespace-nowrap tabular-nums">
                                         {r.correct_count} / {r.wrong_count}
@@ -213,12 +285,31 @@ export default function Results({ exam, rows, buildings, filters, castRules, pil
                                             </select>
                                         </Td>
                                     )}
+                                    <Td className="text-right whitespace-nowrap">
+                                        <Button asChild size="sm" variant="ghost" className="h-8 gap-1 px-2 text-xs">
+                                            <Link href={route('admin.attempts.review', [exam.id, r.attempt_id])} title="Lihat jawaban tiap butir soal">
+                                                <FileText className="size-3.5" /> Jawaban
+                                            </Link>
+                                        </Button>
+                                    </Td>
                                 </Tr>
                             );
                         })}
                     </tbody>
                 </DataTable>
             </div>
+
+            {/* Dialog Koreksi / Penyesuaian Nilai */}
+            {adjustDialog.open && (
+                <AdjustScoreDialog
+                    open={adjustDialog.open}
+                    onOpenChange={(open) => setAdjustDialog((prev) => ({ ...prev, open }))}
+                    examId={exam.id}
+                    attemptId={adjustDialog.attemptId}
+                    section={adjustDialog.section}
+                    participantName={adjustDialog.participantName}
+                />
+            )}
         </AppLayout>
     );
 }

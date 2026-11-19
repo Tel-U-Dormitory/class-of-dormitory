@@ -7,8 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import { formatDateTime } from '@/lib/format';
 import { type Option, type SharedData } from '@/types';
-import { Head, router, usePage } from '@inertiajs/react';
-import { KeyRound, Trash2, UserRound } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { FileText, KeyRound, Trash2, UserRound } from 'lucide-react';
 
 interface Props {
     participant: {
@@ -29,6 +29,7 @@ interface Props {
     };
     attempts: {
         id: number;
+        exam_id: number;
         exam: string;
         status: string;
         status_label: string;
@@ -37,7 +38,15 @@ interface Props {
         submit_reason: string | null;
         score_total: number | null;
         tab_switch_count: number;
-        sections: { label: string; score: number | null; correct: number | null; wrong: number | null }[];
+        sections: {
+            label: string;
+            score: number | null;
+            score_web: number | null;
+            adjustment_type: 'addition' | 'overwrite' | null;
+            manual_score: number | null;
+            correct: number | null;
+            wrong: number | null;
+        }[];
     }[];
     statuses: Option[];
     newToken: string | null;
@@ -185,7 +194,14 @@ export default function ParticipantShow({ participant, attempts, statuses, newTo
                                 {attempts.map((a) => (
                                     <div key={a.id} className="rounded-lg border p-4">
                                         <div className="flex flex-wrap items-center justify-between gap-2">
-                                            <p className="font-medium">{a.exam}</p>
+                                            <div className="flex items-center gap-2">
+                                                <p className="font-medium">{a.exam}</p>
+                                                <Button asChild size="sm" variant="ghost" className="h-6 gap-1 px-1.5 text-xs">
+                                                    <Link href={route('admin.attempts.review', [a.exam_id, a.id])}>
+                                                        <FileText className="size-3" /> Lembar Jawaban
+                                                    </Link>
+                                                </Button>
+                                            </div>
                                             <StatusBadge status={a.status} label={a.status_label} />
                                         </div>
                                         <p className="text-muted-foreground mt-1 text-xs">
@@ -198,7 +214,19 @@ export default function ParticipantShow({ participant, attempts, statuses, newTo
                                                 {a.sections.map((s) => (
                                                     <div key={s.label} className="bg-muted/40 rounded-md p-2 text-center">
                                                         <p className="text-muted-foreground text-xs">{s.label}</p>
-                                                        <p className="font-semibold tabular-nums">{s.score ?? 0}</p>
+                                                        <div className="flex items-center justify-center gap-1 font-semibold tabular-nums">
+                                                            <span>{s.score ?? 0}</span>
+                                                            {s.adjustment_type === 'addition' && (
+                                                                <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[0.65rem] font-semibold text-emerald-700 dark:text-emerald-300">
+                                                                    +{s.manual_score}
+                                                                </span>
+                                                            )}
+                                                            {s.adjustment_type === 'overwrite' && (
+                                                                <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[0.65rem] font-semibold text-amber-700 dark:text-amber-300">
+                                                                    Timpa
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                         <p className="text-muted-foreground text-[0.7rem]">
                                                             {s.correct ?? 0} benar · {s.wrong ?? 0} salah
                                                         </p>
