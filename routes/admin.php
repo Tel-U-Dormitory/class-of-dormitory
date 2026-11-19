@@ -31,6 +31,7 @@ Route::middleware('auth')->group(function () {
         Route::get('ujian/{exam}/hasil', [ResultController::class, 'index'])->name('exams.results');
         Route::get('ujian/{exam}/hasil/export', [ResultController::class, 'export'])->name('exams.results.export');
         Route::get('ujian/{exam}/cast-reveal', [CastController::class, 'reveal'])->name('exams.cast-reveal');
+        Route::get('ujian/{exam}/attempt/{attempt}/jawaban', [ResultController::class, 'review'])->name('attempts.review');
 
         Route::get('bracket', BracketController::class)->name('bracket');
 
@@ -78,6 +79,7 @@ Route::middleware('auth')->group(function () {
 
             Route::post('ujian/{exam}/tetapkan-cast', [CastController::class, 'apply'])->name('exams.cast.apply');
             Route::patch('ujian/{exam}/attempt/{attempt}/spesialis', [ResultController::class, 'specialist'])->name('attempts.specialist');
+            Route::patch('ujian/{exam}/attempt/{attempt}/section/{section}/adjust', [ResultController::class, 'adjustSection'])->name('attempts.sections.adjust');
 
             Route::get('challenge', [ChallengeController::class, 'index'])->name('challenges.index');
             Route::post('challenge', [ChallengeController::class, 'store'])->name('challenges.store');

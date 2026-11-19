@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Admin;
 
 use App\Enums\Pillar;
 use App\Http\Controllers\Controller;
+use App\Models\AttemptSection;
 use App\Models\Building;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
+use App\Models\ExamSection;
 use App\Services\Exam\CastSelectionService;
+use App\Services\Exam\ScoringService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -103,6 +106,16 @@ class ResultController extends Controller
                 'building_id' => $a->participant->building_id,
                 'building' => $a->participant->building->name,
                 'section_scores' => $a->sections->pluck('score', 'exam_section_id'),
+                'section_adjustments' => $a->sections->keyBy('exam_section_id')->map(fn ($s) => [
+                    'attempt_section_id' => $s->id,
+                    'score' => $s->score ?? 0,
+                    'score_web' => $s->score_web ?? $s->score ?? 0,
+                    'adjustment_type' => $s->adjustment_type,
+                    'manual_score' => $s->manual_score ?? 0,
+                    'adjustment_notes' => $s->adjustment_notes,
+                    'adjusted_by' => $s->adjuster?->name,
+                    'adjusted_at' => $s->adjusted_at?->toIso8601String(),
+                ]),
                 'score_total' => $a->score_total,
                 'correct_count' => $a->correct_count,
                 'wrong_count' => $a->wrong_count,
@@ -120,5 +133,157 @@ class ResultController extends Controller
 
             return [...$row, 'building_rank' => $buildingCounters[$row['building_id']]];
         });
+    }
+
+    public function review(Exam $exam, ExamAttempt $attempt): Response
+    {
+        abort_unless($attempt->exam_id === $exam->id, 404);
+
+        $attempt->load([
+            'participant.building',
+            'sections.section',
+            'sections.adjuster',
+            'answers.option',
+        ]);
+
+        $exam->load([
+            'sections.groups.questions.options',
+        ]);
+
+        $answersByQuestion = $attempt->answers->keyBy('question_id');
+
+        $sectionsData = $exam->sections->sortBy('position')->values()->map(function ($section) use ($attempt, $answersByQuestion) {
+            $attemptSection = $attempt->sections->firstWhere('exam_section_id', $section->id);
+
+            $groups = $section->groups->sortBy('position')->values()->map(function ($group) use ($answersByQuestion) {
+                return [
+                    'id' => $group->id,
+                    'title' => $group->title,
+                    'kind' => $group->kind,
+                    'position' => $group->position,
+                    'stimulus_type' => $group->stimulus_type->value,
+                    'stimulus_text' => $group->stimulus_text,
+                    'stimulus_media_url' => MediaController::urlFor($group->stimulus_media_path),
+                    'questions' => $group->questions->sortBy('position')->values()->map(function ($q) use ($answersByQuestion) {
+                        $ans = $answersByQuestion->get($q->id);
+                        $isAnswered = $ans !== null && $ans->question_option_id !== null;
+
+                        return [
+                            'id' => $q->id,
+                            'position' => $q->position,
+                            'body' => $q->body,
+                            'is_latex' => $q->is_latex,
+                            'image_url' => MediaController::urlFor($q->image_path),
+                            'options_are_images' => $q->options_are_images,
+                            'points' => $q->points,
+                            'penalty' => $q->penalty,
+                            'is_active' => $q->is_active,
+                            'notes' => $q->notes,
+                            'options' => $q->options->sortBy('position')->values()->map(fn ($o) => [
+                                'id' => $o->id,
+                                'position' => $o->position,
+                                'label' => $o->label(),
+                                'content' => $q->options_are_images ? null : $o->content,
+                                'image_url' => $q->options_are_images ? MediaController::urlFor($o->content) : null,
+                                'is_correct' => $o->is_correct,
+                                'is_selected' => $ans?->question_option_id === $o->id,
+                            ]),
+                            'answered' => $isAnswered,
+                            'selected_option_id' => $ans?->question_option_id,
+                            'is_correct' => $ans?->is_correct,
+                            'score' => $ans?->score,
+                            'answered_at' => $ans?->answered_at?->toIso8601String(),
+                        ];
+                    }),
+                ];
+            });
+
+            $totalQuestions = $groups->sum(fn ($g) => $g['questions']->count());
+            $answeredCount = $groups->sum(fn ($g) => $g['questions']->where('answered', true)->count());
+
+            return [
+                'id' => $section->id,
+                'attempt_section_id' => $attemptSection?->id,
+                'pillar' => $section->pillar->value,
+                'label' => $section->label(),
+                'duration_seconds' => $section->duration_seconds,
+                'score' => $attemptSection?->score ?? 0,
+                'score_web' => $attemptSection?->score_web ?? $attemptSection?->score ?? 0,
+                'adjustment_type' => $attemptSection?->adjustment_type,
+                'manual_score' => $attemptSection?->manual_score ?? 0,
+                'adjustment_notes' => $attemptSection?->adjustment_notes,
+                'adjusted_by' => $attemptSection?->adjuster?->name,
+                'adjusted_at' => $attemptSection?->adjusted_at?->toIso8601String(),
+                'correct_count' => $attemptSection?->correct_count ?? 0,
+                'wrong_count' => $attemptSection?->wrong_count ?? 0,
+                'answered_count' => $answeredCount,
+                'unanswered_count' => $totalQuestions - $answeredCount,
+                'total_questions' => $totalQuestions,
+                'groups' => $groups,
+            ];
+        });
+
+        return Inertia::render('admin/exams/review', [
+            'exam' => [
+                'id' => $exam->id,
+                'title' => $exam->title,
+            ],
+            'attempt' => [
+                'id' => $attempt->id,
+                'status' => $attempt->status->value,
+                'status_label' => $attempt->status->label(),
+                'score_total' => $attempt->score_total,
+                'correct_count' => $attempt->correct_count,
+                'wrong_count' => $attempt->wrong_count,
+                'duration_seconds' => $attempt->duration_seconds,
+                'tab_switch_count' => $attempt->tab_switch_count,
+                'submit_reason' => $attempt->submit_reason?->label(),
+                'started_at' => $attempt->started_at->toIso8601String(),
+                'submitted_at' => $attempt->submitted_at?->toIso8601String(),
+            ],
+            'participant' => [
+                'id' => $attempt->participant->id,
+                'full_name' => $attempt->participant->full_name,
+                'nim' => $attempt->participant->nim,
+                'building' => $attempt->participant->building->name,
+                'room_number' => $attempt->participant->room_number,
+                'major' => $attempt->participant->major,
+            ],
+            'sections' => $sectionsData,
+        ]);
+    }
+
+    public function adjustSection(
+        Request $request,
+        Exam $exam,
+        ExamAttempt $attempt,
+        ExamSection $section,
+        ScoringService $scoring
+    ): RedirectResponse {
+        abort_unless($attempt->exam_id === $exam->id, 404);
+        abort_unless($section->exam_id === $exam->id, 404);
+
+        $attemptSection = AttemptSection::where('exam_attempt_id', $attempt->id)
+            ->where('exam_section_id', $section->id)
+            ->firstOrFail();
+
+        $data = $request->validate([
+            'adjustment_type' => ['required', 'in:none,addition,overwrite'],
+            'manual_score' => ['nullable', 'integer', 'min:-1000', 'max:1000'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $type = $data['adjustment_type'] === 'none' ? null : $data['adjustment_type'];
+        $manualScore = (int) ($data['manual_score'] ?? 0);
+
+        $scoring->adjustSection(
+            $attemptSection,
+            $type,
+            $manualScore,
+            $data['notes'] ?? null,
+            $request->user()
+        );
+
+        return back()->with('success', 'Nilai subtes berhasil diperbarui.');
     }
 }
