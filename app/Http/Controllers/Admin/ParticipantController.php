@@ -100,6 +100,7 @@ class ParticipantController extends Controller
             ->get()
             ->map(fn (ExamAttempt $a) => [
                 'id' => $a->id,
+                'exam_id' => $a->exam_id,
                 'exam' => $a->exam->title,
                 'status' => $a->status->value,
                 'status_label' => $a->status->label(),
@@ -111,6 +112,9 @@ class ParticipantController extends Controller
                 'sections' => $a->sections->map(fn ($s) => [
                     'label' => $s->section->label(),
                     'score' => $s->score,
+                    'score_web' => $s->score_web ?? $s->score,
+                    'adjustment_type' => $s->adjustment_type,
+                    'manual_score' => $s->manual_score,
                     'correct' => $s->correct_count,
                     'wrong' => $s->wrong_count,
                 ]),

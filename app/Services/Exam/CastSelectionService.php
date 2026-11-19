@@ -38,7 +38,7 @@ class CastSelectionService
             ->where('status', AttemptStatus::Submitted)
             ->where(fn ($q) => $q->whereNull('submit_reason')->orWhere('submit_reason', '!=', SubmitReason::Disqualified))
             ->whereHas('participant', fn ($q) => $q->where('status', '!=', ParticipantStatus::Disqualified))
-            ->with(['participant.building', 'sections'])
+            ->with(['participant.building', 'sections.adjuster'])
             ->orderByDesc('score_total')
             ->orderBy('duration_seconds')
             ->orderBy('id')
