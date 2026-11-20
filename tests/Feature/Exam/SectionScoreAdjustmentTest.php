@@ -12,8 +12,10 @@ use App\Models\ExamAttempt;
 use App\Models\Participant;
 use App\Models\Question;
 use App\Models\User;
+use App\Services\Exam\CastSelectionService;
 use App\Services\Exam\ScoringService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class SectionScoreAdjustmentTest extends TestCase
@@ -21,9 +23,13 @@ class SectionScoreAdjustmentTest extends TestCase
     use RefreshDatabase;
 
     private Exam $exam;
+
     private Participant $participant;
+
     private ExamAttempt $attempt;
+
     private User $admin;
+
     private User $operator;
 
     protected function setUp(): void
@@ -88,14 +94,83 @@ class SectionScoreAdjustmentTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('admin/exams/review')
-                ->has('sections')
+                ->missing('sections')
                 ->where('participant.id', $this->participant->id)
+                ->loadDeferredProps(fn ($reload) => $reload
+                    ->has('sections', $this->exam->sections->count())
+                    ->where('sections.0.answered_count', 1)
+                    ->where('sections.0.groups.0.questions.0.is_correct', true)
+                )
             );
 
         // Admin can view
         $this->actingAs($this->admin)
             ->get(route('admin.attempts.review', [$this->exam, $this->attempt]))
             ->assertOk();
+    }
+
+    public function test_cast_availability_uses_one_existence_query_and_excludes_disqualified_attempts(): void
+    {
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->assertTrue(app(CastSelectionService::class)->hasRanked($this->exam));
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+        $this->assertCount(1, $queries);
+        $this->assertStringContainsString('exists', strtolower($queries[0]['query']));
+
+        $this->attempt->update(['submit_reason' => SubmitReason::Disqualified]);
+        $this->assertFalse(app(CastSelectionService::class)->hasRanked($this->exam));
+    }
+
+    public function test_initial_review_does_not_query_questions_or_answers(): void
+    {
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $this->actingAs($this->admin)
+            ->get(route('admin.attempts.review', [$this->exam, $this->attempt]))
+            ->assertOk();
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+        foreach ($queries as $query) {
+            $this->assertDoesNotMatchRegularExpression('/from ["`](questions|question_options|attempt_answers)["`]/i', $query['query']);
+        }
+    }
+
+    public function test_results_defer_and_paginate_without_changing_global_ranks(): void
+    {
+        // A submitted/scored attempt has a numeric total; NULL ordering differs by database.
+        $this->attempt->update(['score_total' => 0]);
+
+        for ($i = 0; $i < 54; $i++) {
+            $participant = Participant::factory()->create(['building_id' => $this->participant->building_id]);
+            ExamAttempt::create([
+                'exam_id' => $this->exam->id,
+                'participant_id' => $participant->id,
+                'status' => AttemptStatus::Submitted,
+                'started_at' => now()->subMinutes(30),
+                'submitted_at' => now(),
+                'submit_reason' => SubmitReason::Manual,
+                'score_total' => 100 - $i,
+                'duration_seconds' => 1800,
+            ]);
+        }
+
+        $this->actingAs($this->admin)
+            ->get(route('admin.exams.results', [$this->exam, 'page' => 2, 'building' => $this->participant->building_id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->missing('results')
+                ->loadDeferredProps(fn ($reload) => $reload
+                    ->has('results.rows', 5)
+                    ->where('results.page', 2)
+                    ->where('results.total', 55)
+                    ->where('results.rows.0.rank', 51)
+                    ->where('results.rows.0.building_rank', 51)
+                    ->where('results.rows.4.attempt_id', $this->attempt->id)
+                    ->where('results.rows.4.section_scores.'.$this->exam->sections->first()->id, 0)
+                )
+            );
     }
 
     public function test_admin_can_adjust_section_score_with_addition(): void

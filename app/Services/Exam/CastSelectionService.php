@@ -8,6 +8,7 @@ use App\Enums\SubmitReason;
 use App\Models\Exam;
 use App\Models\ExamAttempt;
 use App\Models\Participant;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -33,16 +34,26 @@ class CastSelectionService
      */
     public function ranked(Exam $exam): Collection
     {
-        return ExamAttempt::query()
-            ->where('exam_id', $exam->id)
-            ->where('status', AttemptStatus::Submitted)
-            ->where(fn ($q) => $q->whereNull('submit_reason')->orWhere('submit_reason', '!=', SubmitReason::Disqualified))
-            ->whereHas('participant', fn ($q) => $q->where('status', '!=', ParticipantStatus::Disqualified))
-            ->with(['participant.building', 'sections.adjuster'])
+        return $this->rankingQuery($exam)
+            ->with(['participant.building'])
             ->orderByDesc('score_total')
             ->orderBy('duration_seconds')
             ->orderBy('id')
             ->get();
+    }
+
+    public function hasRanked(Exam $exam): bool
+    {
+        return $this->rankingQuery($exam)->exists();
+    }
+
+    private function rankingQuery(Exam $exam): Builder
+    {
+        return ExamAttempt::query()
+            ->where('exam_id', $exam->id)
+            ->where('status', AttemptStatus::Submitted)
+            ->where(fn ($q) => $q->whereNull('submit_reason')->orWhere('submit_reason', '!=', SubmitReason::Disqualified))
+            ->whereHas('participant', fn ($q) => $q->where('status', '!=', ParticipantStatus::Disqualified));
     }
 
     /**

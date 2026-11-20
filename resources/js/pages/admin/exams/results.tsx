@@ -1,16 +1,17 @@
+import { AdjustScoreDialog, type SectionAdjustmentData } from '@/components/admin/adjust-score-dialog';
 import { useConfirmation } from '@/components/confirmation-provider';
 import { DataTable, EmptyRow, Td, Th, Tr } from '@/components/data-table';
 import { NativeSelect } from '@/components/native-select';
 import { PageHeader } from '@/components/page-header';
+import { PageSkeleton } from '@/components/page-skeleton';
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
 import { Crown, Download, Eye, EyeOff, FileText, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { AdjustScoreDialog, type SectionAdjustmentData } from '@/components/admin/adjust-score-dialog';
 
 interface SectionAdjustmentItem {
     attempt_section_id: number;
@@ -19,8 +20,6 @@ interface SectionAdjustmentItem {
     adjustment_type: 'addition' | 'overwrite' | null;
     manual_score: number;
     adjustment_notes: string | null;
-    adjusted_by: string | null;
-    adjusted_at: string | null;
 }
 
 interface Row {
@@ -47,7 +46,7 @@ interface Row {
 
 interface Props {
     exam: { id: number; title: string; results_published: boolean; cast_applied: boolean; sections: { id: number; label: string }[] };
-    rows: Row[];
+    results: { rows: Row[]; page: number; last_page: number; total: number };
     buildings: { id: number; name: string }[];
     filters: { building: number | null };
     castRules: { global_keep: number; per_building: number };
@@ -70,7 +69,24 @@ function CastBadge({ type, preview }: { type: 'global' | 'building' | null; prev
     );
 }
 
-export default function Results({ exam, rows, buildings, filters, castRules, pillars }: Props) {
+export default function ResultsPage(props: Props) {
+    return (
+        <Deferred
+            data="results"
+            fallback={
+                <AppLayout>
+                    <Head title={`Hasil · ${props.exam.title}`} />
+                    <PageSkeleton />
+                </AppLayout>
+            }
+        >
+            <Results {...props} />
+        </Deferred>
+    );
+}
+
+function Results({ exam, results, buildings, filters, castRules, pillars }: Props) {
+    const { rows, page, last_page, total } = results;
     const { confirm } = useConfirmation();
     const { auth } = usePage<SharedData>().props;
     const isAdmin = auth.user?.role === 'admin';
@@ -228,18 +244,20 @@ export default function Results({ exam, rows, buildings, filters, castRules, pil
                                                                     },
                                                                 })
                                                             }
-                                                            className="group inline-flex items-center gap-1 hover:text-primary transition-colors cursor-pointer"
+                                                            className="group hover:text-primary inline-flex cursor-pointer items-center gap-1 transition-colors"
                                                             title={
                                                                 isAdjusted
                                                                     ? `Disesuaikan (${adj?.adjustment_type === 'addition' ? 'Tambah' : 'Timpa'}): Web ${adj?.score_web}${adj?.adjustment_notes ? ` - "${adj.adjustment_notes}"` : ''} - Klik untuk ubah`
                                                                     : 'Klik untuk sesuaikan nilai'
                                                             }
                                                         >
-                                                            <span className={cn(isAdjusted && 'font-semibold text-primary underline decoration-dotted')}>
+                                                            <span
+                                                                className={cn(isAdjusted && 'text-primary font-semibold underline decoration-dotted')}
+                                                            >
                                                                 {scoreVal}
                                                             </span>
                                                             {isAdjusted && (
-                                                                <span className="rounded bg-amber-500/15 px-1 py-0.2 text-[0.65rem] font-semibold text-amber-700 dark:text-amber-300">
+                                                                <span className="py-0.2 rounded bg-amber-500/15 px-1 text-[0.65rem] font-semibold text-amber-700 dark:text-amber-300">
                                                                     {adj?.adjustment_type === 'addition' ? `+${adj.manual_score}` : 'Timpa'}
                                                                 </span>
                                                             )}
@@ -287,7 +305,11 @@ export default function Results({ exam, rows, buildings, filters, castRules, pil
                                     )}
                                     <Td className="text-right whitespace-nowrap">
                                         <Button asChild size="sm" variant="ghost" className="h-8 gap-1 px-2 text-xs">
-                                            <Link href={route('admin.attempts.review', [exam.id, r.attempt_id])} title="Lihat jawaban tiap butir soal">
+                                            <Link
+                                                prefetch
+                                                href={route('admin.attempts.review', [exam.id, r.attempt_id])}
+                                                title="Lihat jawaban tiap butir soal"
+                                            >
                                                 <FileText className="size-3.5" /> Jawaban
                                             </Link>
                                         </Button>
@@ -297,6 +319,31 @@ export default function Results({ exam, rows, buildings, filters, castRules, pil
                         })}
                     </tbody>
                 </DataTable>
+                <div className="flex items-center justify-between gap-3 text-sm">
+                    <span>
+                        {total} peserta · Halaman {page} dari {last_page}
+                    </span>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            disabled={page <= 1}
+                            onClick={() =>
+                                router.get(route('admin.exams.results', exam.id), { building: filters.building || undefined, page: page - 1 })
+                            }
+                        >
+                            Sebelumnya
+                        </Button>
+                        <Button
+                            variant="outline"
+                            disabled={page >= last_page}
+                            onClick={() =>
+                                router.get(route('admin.exams.results', exam.id), { building: filters.building || undefined, page: page + 1 })
+                            }
+                        >
+                            Berikutnya
+                        </Button>
+                    </div>
+                </div>
             </div>
 
             {/* Dialog Koreksi / Penyesuaian Nilai */}
