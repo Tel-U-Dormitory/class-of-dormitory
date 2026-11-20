@@ -17,6 +17,18 @@ class HomeController extends Controller
 {
     public function __invoke(Request $request, CastSelectionService $castService): Response
     {
+        return Inertia::render('welcome', [
+            'pillars' => collect(Pillar::cases())->map(fn (Pillar $p) => [
+                'value' => $p->value,
+                'label' => $p->label(),
+                'description' => $p->description(),
+            ]),
+            'landing' => Inertia::defer(fn () => $this->landing($request, $castService)),
+        ]);
+    }
+
+    private function landing(Request $request, CastSelectionService $castService): array
+    {
         $exam = CurrentExam::get()?->load('sections');
         $published = $exam?->results_published_at !== null;
 
@@ -52,7 +64,7 @@ class HomeController extends Controller
             $documentation = [];
         }
 
-        return Inertia::render('welcome', [
+        return [
             'exam' => $exam ? [
                 'title' => $exam->title,
                 'description' => $exam->description,
@@ -60,17 +72,12 @@ class HomeController extends Controller
                 'scheduled_at' => $exam->scheduled_at?->toIso8601String(),
                 'total_minutes' => intdiv($exam->totalDurationSeconds(), 60),
             ] : null,
-            'pillars' => collect(Pillar::cases())->map(fn (Pillar $p) => [
-                'value' => $p->value,
-                'label' => $p->label(),
-                'description' => $p->description(),
-            ]),
             'resultsPublished' => $published,
             'documentation' => $documentation,
             'documentationTitle' => Settings::get('documentation_title'),
             'result' => $result,
             // Pintasan cast tampil jika dipublikasikan dan sudah ada peserta yang selesai ujian
             'castOpen' => $published && $castService->hasRanked($exam),
-        ]);
+        ];
     }
 }
