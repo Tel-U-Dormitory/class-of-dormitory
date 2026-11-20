@@ -13,7 +13,6 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
-
 class HomeController extends Controller
 {
     public function __invoke(Request $request, CastSelectionService $castService): Response
@@ -71,7 +70,7 @@ class HomeController extends Controller
             'documentationTitle' => Settings::get('documentation_title'),
             'result' => $result,
             // Pintasan cast tampil jika dipublikasikan dan sudah ada peserta yang selesai ujian
-            'castOpen' => $published && $castService->ranked($exam)->isNotEmpty(),
+            'castOpen' => $published && $castService->hasRanked($exam),
         ]);
     }
 }

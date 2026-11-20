@@ -98,7 +98,7 @@ export default function ExamsIndex({ exams }: Props) {
                                         </Link>
                                     </Button>
                                     <Button asChild variant="ghost" size="sm">
-                                        <Link href={route('admin.exams.results', exam.id)}>
+                                        <Link prefetch href={route('admin.exams.results', exam.id)}>
                                             <Trophy /> Hasil
                                         </Link>
                                     </Button>

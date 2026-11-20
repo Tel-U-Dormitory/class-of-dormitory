@@ -28,14 +28,6 @@ class ResultController extends Controller
         $exam->load('sections');
         $building = $request->integer('building') ?: null;
 
-        // Pratinjau aturan cast agar panitia bisa memeriksa sebelum menetapkan.
-        $ranked = $this->cast->ranked($exam);
-        ['global' => $global, 'buildings' => $buildings] = $this->cast->select($exam, $ranked);
-        $preview = $global->mapWithKeys(fn ($a) => [$a->id => 'global'])
-            ->union($buildings->flatten(1)->mapWithKeys(fn ($a) => [$a->id => 'building']));
-
-        $rows = $this->ranked($exam, $ranked)->map(fn (array $row) => [...$row, 'cast_preview' => $preview->get($row['attempt_id'])]);
-
         return Inertia::render('admin/exams/results', [
             'exam' => [
                 'id' => $exam->id,
@@ -44,12 +36,38 @@ class ResultController extends Controller
                 'cast_applied' => ExamAttempt::where('exam_id', $exam->id)->whereNotNull('cast_type')->exists(),
                 'sections' => $exam->sections->map(fn ($s) => ['id' => $s->id, 'label' => $s->label()]),
             ],
-            'rows' => $building ? $rows->where('building_id', $building)->values() : $rows,
+            'results' => Inertia::defer(fn () => $this->resultsPage($request, $exam, $building)),
             'buildings' => Building::orderBy('sort_order')->get(['id', 'name']),
             'filters' => ['building' => $building],
             'castRules' => ['global_keep' => $this->cast->globalKeep(), 'per_building' => $this->cast->perBuilding()],
             'pillars' => collect(Pillar::cases())->map(fn ($p) => ['value' => $p->value, 'label' => $p->label()]),
         ]);
+    }
+
+    private function resultsPage(Request $request, Exam $exam, ?int $building): array
+    {
+        // Cast and ranks must use the entire cohort, before filtering or pagination.
+        $ranked = $this->cast->ranked($exam);
+        ['global' => $global, 'buildings' => $buildings] = $this->cast->select($exam, $ranked);
+        $preview = $global->mapWithKeys(fn ($a) => [$a->id => 'global'])
+            ->union($buildings->flatten(1)->mapWithKeys(fn ($a) => [$a->id => 'building']));
+        $buildingCounters = [];
+        $ranks = $ranked->values()->mapWithKeys(function ($attempt, $index) use (&$buildingCounters) {
+            $id = $attempt->participant->building_id;
+            $buildingCounters[$id] = ($buildingCounters[$id] ?? 0) + 1;
+
+            return [$attempt->id => ['rank' => $index + 1, 'building_rank' => $buildingCounters[$id]]];
+        });
+        $filtered = $building ? $ranked->filter(fn ($a) => $a->participant->building_id === $building)->values() : $ranked;
+        $lastPage = max(1, (int) ceil($filtered->count() / 50));
+        $page = min(max(1, $request->integer('page', 1)), $lastPage);
+        $rows = $this->ranked($exam, $filtered->forPage($page, 50))->map(fn ($row) => [
+            ...$row,
+            ...$ranks[$row['attempt_id']],
+            'cast_preview' => $preview->get($row['attempt_id']),
+        ]);
+
+        return ['rows' => $rows, 'page' => $page, 'last_page' => $lastPage, 'total' => $filtered->count()];
     }
 
     public function export(Exam $exam): StreamedResponse
@@ -94,7 +112,10 @@ class ResultController extends Controller
      */
     private function ranked(Exam $exam, ?Collection $ranked = null): Collection
     {
-        $rows = ($ranked ?? $this->cast->ranked($exam))
+        $ranked ??= $this->cast->ranked($exam);
+        $ranked->loadMissing('sections');
+
+        $rows = $ranked
             ->values()
             ->map(fn (ExamAttempt $a, int $i) => [
                 'attempt_id' => $a->id,
@@ -113,8 +134,6 @@ class ResultController extends Controller
                     'adjustment_type' => $s->adjustment_type,
                     'manual_score' => $s->manual_score ?? 0,
                     'adjustment_notes' => $s->adjustment_notes,
-                    'adjusted_by' => $s->adjuster?->name,
-                    'adjusted_at' => $s->adjusted_at?->toIso8601String(),
                 ]),
                 'score_total' => $a->score_total,
                 'correct_count' => $a->correct_count,
@@ -141,18 +160,48 @@ class ResultController extends Controller
 
         $attempt->load([
             'participant.building',
-            'sections.section',
-            'sections.adjuster',
-            'answers.option',
         ]);
 
+        return Inertia::render('admin/exams/review', [
+            'exam' => [
+                'id' => $exam->id,
+                'title' => $exam->title,
+            ],
+            'attempt' => [
+                'id' => $attempt->id,
+                'status' => $attempt->status->value,
+                'status_label' => $attempt->status->label(),
+                'score_total' => $attempt->score_total,
+                'correct_count' => $attempt->correct_count,
+                'wrong_count' => $attempt->wrong_count,
+                'duration_seconds' => $attempt->duration_seconds,
+                'tab_switch_count' => $attempt->tab_switch_count,
+                'submit_reason' => $attempt->submit_reason?->label(),
+                'started_at' => $attempt->started_at->toIso8601String(),
+                'submitted_at' => $attempt->submitted_at?->toIso8601String(),
+            ],
+            'participant' => [
+                'id' => $attempt->participant->id,
+                'full_name' => $attempt->participant->full_name,
+                'nim' => $attempt->participant->nim,
+                'building' => $attempt->participant->building->name,
+                'room_number' => $attempt->participant->room_number,
+                'major' => $attempt->participant->major,
+            ],
+            'sections' => Inertia::defer(fn () => $this->reviewSections($exam, $attempt)),
+        ]);
+    }
+
+    private function reviewSections(Exam $exam, ExamAttempt $attempt): Collection
+    {
+        $attempt->load(['sections.adjuster', 'answers']);
         $exam->load([
             'sections.groups.questions.options',
         ]);
 
         $answersByQuestion = $attempt->answers->keyBy('question_id');
 
-        $sectionsData = $exam->sections->sortBy('position')->values()->map(function ($section) use ($attempt, $answersByQuestion) {
+        return $exam->sections->sortBy('position')->values()->map(function ($section) use ($attempt, $answersByQuestion) {
             $attemptSection = $attempt->sections->firstWhere('exam_section_id', $section->id);
 
             $groups = $section->groups->sortBy('position')->values()->map(function ($group) use ($answersByQuestion) {
@@ -223,34 +272,6 @@ class ResultController extends Controller
             ];
         });
 
-        return Inertia::render('admin/exams/review', [
-            'exam' => [
-                'id' => $exam->id,
-                'title' => $exam->title,
-            ],
-            'attempt' => [
-                'id' => $attempt->id,
-                'status' => $attempt->status->value,
-                'status_label' => $attempt->status->label(),
-                'score_total' => $attempt->score_total,
-                'correct_count' => $attempt->correct_count,
-                'wrong_count' => $attempt->wrong_count,
-                'duration_seconds' => $attempt->duration_seconds,
-                'tab_switch_count' => $attempt->tab_switch_count,
-                'submit_reason' => $attempt->submit_reason?->label(),
-                'started_at' => $attempt->started_at->toIso8601String(),
-                'submitted_at' => $attempt->submitted_at?->toIso8601String(),
-            ],
-            'participant' => [
-                'id' => $attempt->participant->id,
-                'full_name' => $attempt->participant->full_name,
-                'nim' => $attempt->participant->nim,
-                'building' => $attempt->participant->building->name,
-                'room_number' => $attempt->participant->room_number,
-                'major' => $attempt->participant->major,
-            ],
-            'sections' => $sectionsData,
-        ]);
     }
 
     public function adjustSection(

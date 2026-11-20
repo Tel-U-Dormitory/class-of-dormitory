@@ -1,6 +1,7 @@
 import AppLogoIcon from '@/components/app-logo-icon';
 import { Embers } from '@/components/embers';
 import { FlashToaster } from '@/components/flash-toaster';
+import { NavigationContent } from '@/components/navigation-content';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
@@ -54,7 +55,9 @@ export default function PublicLayout({ children, className, wide = false }: { ch
                 </div>
             </header>
 
-            <main className={cn('flex-1', className)}>{children}</main>
+            <main className={cn('flex-1', className)}>
+                <NavigationContent>{children}</NavigationContent>
+            </main>
 
             <footer className="border-border/60 border-t">
                 <div className="text-muted-foreground mx-auto flex max-w-6xl flex-col gap-2 px-4 py-8 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-6">

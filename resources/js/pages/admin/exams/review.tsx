@@ -1,5 +1,7 @@
+import { AdjustScoreDialog, type SectionAdjustmentData } from '@/components/admin/adjust-score-dialog';
 import { MathText } from '@/components/exam/math-text';
 import { PageHeader } from '@/components/page-header';
+import { PageSkeleton } from '@/components/page-skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -7,20 +9,9 @@ import AppLayout from '@/layouts/app-layout';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
-import { Head, Link, usePage } from '@inertiajs/react';
-import {
-    ArrowLeft,
-    Calculator,
-    Check,
-    CheckCircle2,
-    FileCheck2,
-    HelpCircle,
-    User as UserIcon,
-    X,
-    XCircle,
-} from 'lucide-react';
+import { Deferred, Head, Link, usePage } from '@inertiajs/react';
+import { ArrowLeft, Calculator, Check, CheckCircle2, FileCheck2, HelpCircle, User as UserIcon, X, XCircle } from 'lucide-react';
 import { useState } from 'react';
-import { AdjustScoreDialog, type SectionAdjustmentData } from '@/components/admin/adjust-score-dialog';
 
 interface OptionItem {
     id: number;
@@ -111,11 +102,28 @@ interface Props {
 
 type QuestionFilter = 'all' | 'correct' | 'wrong' | 'unanswered';
 
-export default function AttemptReview({ exam, attempt, participant, sections }: Props) {
+export default function AttemptReviewPage(props: Props) {
+    return (
+        <Deferred
+            data="sections"
+            fallback={
+                <AppLayout>
+                    <Head title={`Lembar Jawaban · ${props.participant.full_name}`} />
+                    <PageSkeleton />
+                </AppLayout>
+            }
+        >
+            <AttemptReview key={props.attempt.id} {...props} />
+        </Deferred>
+    );
+}
+
+function AttemptReview({ exam, attempt, participant, sections }: Props) {
     const { auth } = usePage<SharedData>().props;
     const isAdmin = auth.user?.role === 'admin';
 
     const [activeSectionId, setActiveSectionId] = useState<number>(sections[0]?.id ?? 0);
+    const [visibleCount, setVisibleCount] = useState(20);
     const [filter, setFilter] = useState<QuestionFilter>('all');
     const [adjustDialog, setAdjustDialog] = useState<{ open: boolean; section: SectionAdjustmentData | null }>({
         open: false,
@@ -132,6 +140,13 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
         if (filter === 'unanswered') return !q.answered;
         return true;
     });
+
+    const visibleQuestions = new Set(filteredQuestions.slice(0, visibleCount).map((q) => q.id));
+    const questionNumbers = new Map(allQuestions.map((q, index) => [q.id, index + 1]));
+    const changeFilter = (value: QuestionFilter) => {
+        setFilter(value);
+        setVisibleCount(20);
+    };
 
     return (
         <AppLayout
@@ -174,7 +189,7 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                 type="button"
                                 onClick={() => {
                                     setActiveSectionId(s.id);
-                                    setFilter('all');
+                                    changeFilter('all');
                                 }}
                                 className={cn(
                                     'flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors',
@@ -184,16 +199,14 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                 )}
                             >
                                 <span>{s.label}</span>
-                                <span className="rounded bg-muted px-1.5 py-0.5 text-[0.68rem] font-bold tabular-nums">
-                                    {s.score} poin
-                                </span>
+                                <span className="bg-muted rounded px-1.5 py-0.5 text-[0.68rem] font-bold tabular-nums">{s.score} poin</span>
                                 {s.adjustment_type === 'addition' && (
-                                    <span className="rounded bg-emerald-500/20 px-1 py-0.2 text-[0.65rem] font-semibold text-emerald-700 dark:text-emerald-300">
+                                    <span className="py-0.2 rounded bg-emerald-500/20 px-1 text-[0.65rem] font-semibold text-emerald-700 dark:text-emerald-300">
                                         +{s.manual_score}
                                     </span>
                                 )}
                                 {s.adjustment_type === 'overwrite' && (
-                                    <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[0.65rem] font-semibold text-amber-700 dark:text-amber-300">
+                                    <span className="py-0.2 rounded bg-amber-500/20 px-1 text-[0.65rem] font-semibold text-amber-700 dark:text-amber-300">
                                         Timpa
                                     </span>
                                 )}
@@ -230,9 +243,7 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                                             : `${activeSection.manual_score} (Timpa / Ujian Ulang)`}
                                                     </span>
                                                     {activeSection.adjusted_by && (
-                                                        <span className="text-muted-foreground text-[0.7rem]">
-                                                            oleh {activeSection.adjusted_by}
-                                                        </span>
+                                                        <span className="text-muted-foreground text-[0.7rem]">oleh {activeSection.adjusted_by}</span>
                                                     )}
                                                 </div>
                                             )}
@@ -284,21 +295,22 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                     </div>
                                     <div className="rounded-md border p-2 text-center text-xs">
                                         <span className="text-muted-foreground block text-[0.7rem]">Kosong di Web</span>
-                                        <strong className={cn('tabular-nums', activeSection.unanswered_count > 0 ? 'text-amber-600 font-semibold' : 'text-foreground')}>
+                                        <strong
+                                            className={cn(
+                                                'tabular-nums',
+                                                activeSection.unanswered_count > 0 ? 'font-semibold text-amber-600' : 'text-foreground',
+                                            )}
+                                        >
                                             {activeSection.unanswered_count}
                                         </strong>
                                     </div>
                                     <div className="rounded-md border p-2 text-center text-xs">
                                         <span className="text-muted-foreground block text-[0.7rem]">Jawaban Benar</span>
-                                        <strong className="text-emerald-600 dark:text-emerald-400 tabular-nums">
-                                            {activeSection.correct_count}
-                                        </strong>
+                                        <strong className="text-emerald-600 tabular-nums dark:text-emerald-400">{activeSection.correct_count}</strong>
                                     </div>
                                     <div className="rounded-md border p-2 text-center text-xs">
                                         <span className="text-muted-foreground block text-[0.7rem]">Jawaban Salah</span>
-                                        <strong className="text-rose-600 dark:text-rose-400 tabular-nums">
-                                            {activeSection.wrong_count}
-                                        </strong>
+                                        <strong className="text-rose-600 tabular-nums dark:text-rose-400">{activeSection.wrong_count}</strong>
                                     </div>
                                 </div>
                             </CardContent>
@@ -312,7 +324,7 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                     size="sm"
                                     variant={filter === 'all' ? 'default' : 'outline'}
                                     className="h-7 text-xs"
-                                    onClick={() => setFilter('all')}
+                                    onClick={() => changeFilter('all')}
                                 >
                                     Semua ({allQuestions.length})
                                 </Button>
@@ -320,7 +332,7 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                     size="sm"
                                     variant={filter === 'correct' ? 'default' : 'outline'}
                                     className={cn('h-7 text-xs', filter !== 'correct' && 'text-emerald-600')}
-                                    onClick={() => setFilter('correct')}
+                                    onClick={() => changeFilter('correct')}
                                 >
                                     Benar ({activeSection.correct_count})
                                 </Button>
@@ -328,7 +340,7 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                     size="sm"
                                     variant={filter === 'wrong' ? 'default' : 'outline'}
                                     className={cn('h-7 text-xs', filter !== 'wrong' && 'text-rose-600')}
-                                    onClick={() => setFilter('wrong')}
+                                    onClick={() => changeFilter('wrong')}
                                 >
                                     Salah ({activeSection.wrong_count})
                                 </Button>
@@ -336,35 +348,35 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                     size="sm"
                                     variant={filter === 'unanswered' ? 'default' : 'outline'}
                                     className={cn('h-7 text-xs', filter !== 'unanswered' && 'text-amber-600')}
-                                    onClick={() => setFilter('unanswered')}
+                                    onClick={() => changeFilter('unanswered')}
                                 >
                                     Kosong di Web ({activeSection.unanswered_count})
                                 </Button>
                             </div>
 
                             <div className="text-muted-foreground text-xs">
-                                Menampilkan {filteredQuestions.length} dari {allQuestions.length} soal
+                                Menampilkan {Math.min(visibleCount, filteredQuestions.length)} dari {allQuestions.length} soal
                             </div>
                         </div>
 
                         {/* Question List */}
                         <div className="space-y-4">
                             {filteredQuestions.length === 0 && (
-                                <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                                <div className="text-muted-foreground rounded-lg border border-dashed p-8 text-center text-sm">
                                     Tidak ada soal yang cocok dengan filter yang dipilih.
                                 </div>
                             )}
 
                             {activeSection.groups.map((group) => {
-                                const groupQuestions = group.questions.filter((q) => filteredQuestions.some((fq) => fq.id === q.id));
+                                const groupQuestions = group.questions.filter((q) => visibleQuestions.has(q.id));
                                 if (groupQuestions.length === 0) return null;
 
                                 return (
                                     <div key={group.id} className="space-y-3">
                                         {group.title && (
                                             <div className="flex items-center gap-2 pt-2">
-                                                <FileCheck2 className="size-4 text-muted-foreground" />
-                                                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                <FileCheck2 className="text-muted-foreground size-4" />
+                                                <h3 className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
                                                     {group.title} {group.kind ? `(${group.kind})` : ''}
                                                 </h3>
                                             </div>
@@ -372,8 +384,8 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
 
                                         {/* Stimulus jika ada */}
                                         {group.stimulus_text && (
-                                            <div className="rounded-lg border bg-muted/30 p-3 text-xs leading-relaxed">
-                                                <span className="text-[0.65rem] font-semibold text-muted-foreground uppercase block mb-1">
+                                            <div className="bg-muted/30 rounded-lg border p-3 text-xs leading-relaxed">
+                                                <span className="text-muted-foreground mb-1 block text-[0.65rem] font-semibold uppercase">
                                                     Materi Observasi / Teks Bacaan
                                                 </span>
                                                 <div className="whitespace-pre-wrap">{group.stimulus_text}</div>
@@ -381,14 +393,14 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                         )}
 
                                         {groupQuestions.map((q) => {
-                                            const questionNumber = allQuestions.findIndex((item) => item.id === q.id) + 1;
+                                            const questionNumber = questionNumbers.get(q.id);
 
                                             return (
                                                 <Card key={q.id} className="border-border bg-card">
-                                                    <CardContent className="p-4 sm:p-5 space-y-3">
+                                                    <CardContent className="space-y-3 p-4 sm:p-5">
                                                         <div className="flex flex-wrap items-start justify-between gap-2 border-b pb-2.5">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs font-bold tabular-nums">
+                                                                <span className="bg-muted flex size-6 items-center justify-center rounded-full text-xs font-bold tabular-nums">
                                                                     {questionNumber}
                                                                 </span>
                                                                 <span className="text-muted-foreground text-xs">
@@ -425,14 +437,20 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                                         </div>
 
                                                         {/* Isi Soal */}
-                                                        <div className="text-sm font-medium leading-relaxed">
+                                                        <div className="text-sm leading-relaxed font-medium">
                                                             <MathText text={q.body} latex={q.is_latex} />
                                                         </div>
 
                                                         {/* Gambar Soal jika ada */}
                                                         {q.image_url && (
-                                                            <div className="max-w-md overflow-hidden rounded-lg border bg-muted">
-                                                                <img src={q.image_url} alt="" className="max-h-60 object-contain p-1" />
+                                                            <div className="bg-muted max-w-md overflow-hidden rounded-lg border">
+                                                                <img
+                                                                    loading="lazy"
+                                                                    decoding="async"
+                                                                    src={q.image_url}
+                                                                    alt=""
+                                                                    className="max-h-60 object-contain p-1"
+                                                                />
                                                             </div>
                                                         )}
 
@@ -447,16 +465,26 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                                                         key={opt.id}
                                                                         className={cn(
                                                                             'relative flex items-start gap-2.5 rounded-lg border p-2.5 text-xs transition-colors',
-                                                                            isKey && isChosen && 'border-emerald-500 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 font-medium',
-                                                                            isChosen && !isKey && 'border-rose-500 bg-rose-500/10 text-rose-950 dark:text-rose-100 font-medium',
-                                                                            isKey && !isChosen && 'border-emerald-500/50 bg-emerald-500/5 text-foreground',
+                                                                            isKey &&
+                                                                                isChosen &&
+                                                                                'border-emerald-500 bg-emerald-500/10 font-medium text-emerald-950 dark:text-emerald-100',
+                                                                            isChosen &&
+                                                                                !isKey &&
+                                                                                'border-rose-500 bg-rose-500/10 font-medium text-rose-950 dark:text-rose-100',
+                                                                            isKey &&
+                                                                                !isChosen &&
+                                                                                'text-foreground border-emerald-500/50 bg-emerald-500/5',
                                                                             !isKey && !isChosen && 'border-border bg-card text-muted-foreground',
                                                                         )}
                                                                     >
                                                                         <span
                                                                             className={cn(
                                                                                 'flex size-5 shrink-0 items-center justify-center rounded text-[0.7rem] font-bold',
-                                                                                isKey ? 'bg-emerald-600 text-white' : isChosen ? 'bg-rose-600 text-white' : 'bg-muted text-muted-foreground',
+                                                                                isKey
+                                                                                    ? 'bg-emerald-600 text-white'
+                                                                                    : isChosen
+                                                                                      ? 'bg-rose-600 text-white'
+                                                                                      : 'bg-muted text-muted-foreground',
                                                                             )}
                                                                         >
                                                                             {opt.label}
@@ -464,7 +492,13 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
 
                                                                         <div className="flex-1 space-y-1">
                                                                             {opt.image_url ? (
-                                                                                <img src={opt.image_url} alt="" className="max-h-24 rounded border object-contain p-1" />
+                                                                                <img
+                                                                                    loading="lazy"
+                                                                                    decoding="async"
+                                                                                    src={opt.image_url}
+                                                                                    alt=""
+                                                                                    className="max-h-24 rounded border object-contain p-1"
+                                                                                />
                                                                             ) : (
                                                                                 <span>{opt.content}</span>
                                                                             )}
@@ -479,10 +513,17 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                                                                     <span
                                                                                         className={cn(
                                                                                             'inline-flex items-center gap-0.5 rounded px-1 text-[0.65rem] font-semibold',
-                                                                                            isKey ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/20 text-rose-700 dark:text-rose-300',
+                                                                                            isKey
+                                                                                                ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                                                                                                : 'bg-rose-500/20 text-rose-700 dark:text-rose-300',
                                                                                         )}
                                                                                     >
-                                                                                        {isKey ? <Check className="size-2.5" /> : <X className="size-2.5" />} Dipilih Peserta
+                                                                                        {isKey ? (
+                                                                                            <Check className="size-2.5" />
+                                                                                        ) : (
+                                                                                            <X className="size-2.5" />
+                                                                                        )}{' '}
+                                                                                        Dipilih Peserta
                                                                                     </span>
                                                                                 )}
                                                                             </div>
@@ -506,6 +547,11 @@ export default function AttemptReview({ exam, attempt, participant, sections }: 
                                 );
                             })}
                         </div>
+                        {filteredQuestions.length > visibleCount && (
+                            <Button variant="outline" onClick={() => setVisibleCount((count) => count + 20)}>
+                                Tampilkan 20 soal berikutnya
+                            </Button>
+                        )}
                     </div>
                 )}
             </div>
