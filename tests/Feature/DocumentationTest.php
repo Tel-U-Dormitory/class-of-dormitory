@@ -62,9 +62,9 @@ class DocumentationTest extends TestCase
         }
 
         $this->get(route('home'))->assertInertia(fn ($page) => $page
-            ->has('documentation', 4)
-            ->where('documentation.0.caption', 'a')
-            ->where('documentation.3.caption', 'd'));
+            ->loadDeferredProps(fn ($page) => $page->has('landing.documentation', 4)
+                ->where('landing.documentation.0.caption', 'a')
+                ->where('landing.documentation.3.caption', 'd')));
     }
 
     public function test_move_changes_which_photos_are_shown(): void
@@ -79,12 +79,12 @@ class DocumentationTest extends TestCase
         $second = Documentation::where('caption', 'b')->firstOrFail();
         $this->patch(route('admin.documentation.move', $second), ['direction' => 'up']);
 
-        $this->get(route('home'))->assertInertia(fn ($page) => $page->where('documentation.0.caption', 'b'));
+        $this->get(route('home'))->assertInertia(fn ($page) => $page->loadDeferredProps(fn ($page) => $page->where('landing.documentation.0.caption', 'b')));
     }
 
     public function test_landing_has_no_photos_when_table_is_empty(): void
     {
-        $this->get(route('home'))->assertInertia(fn ($page) => $page->has('documentation', 0));
+        $this->get(route('home'))->assertInertia(fn ($page) => $page->loadDeferredProps(fn ($page) => $page->has('landing.documentation', 0)));
     }
 
     public function test_operator_cannot_manage_photos(): void

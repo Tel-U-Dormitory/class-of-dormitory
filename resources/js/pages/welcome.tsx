@@ -4,16 +4,20 @@ import { formatDate } from '@/lib/format';
 import { pillarMeta } from '@/lib/pillars';
 import { cn } from '@/lib/utils';
 import { type Pillar, type SharedData } from '@/types';
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Deferred, Head, Link, usePage } from '@inertiajs/react';
 import { ArrowRight, CalendarDays, Clock, ShieldCheck } from 'lucide-react';
 
-interface Props {
+interface Landing {
     exam: { title: string; description: string | null; is_open: boolean; scheduled_at: string | null; total_minutes: number } | null;
-    pillars: { value: Pillar; label: string; description: string }[];
     result: { score_total: number; sections: { label: string; score: number }[] } | null;
     castOpen: boolean;
     documentation: { id: number; caption: string | null; url: string }[];
     documentationTitle: string;
+}
+
+interface Props {
+    landing?: Landing;
+    pillars: { value: Pillar; label: string; description: string }[];
 }
 
 const steps = [
@@ -23,7 +27,16 @@ const steps = [
     { title: 'Babak utama', body: 'Cast bertanding di chapter, challenge, dan deathmatch Season 3.' },
 ];
 
-export default function Welcome({ exam, pillars, result, castOpen, documentation, documentationTitle }: Props) {
+export default function Welcome(props: Props) {
+    return (
+        <Deferred data="landing" fallback={<WelcomeContent {...props} loading />} >
+            <WelcomeContent {...props} />
+        </Deferred>
+    );
+}
+
+function WelcomeContent({ landing, pillars, loading = false }: Props & { loading?: boolean }) {
+    const { exam = null, result = null, castOpen = false, documentation = [], documentationTitle = 'Dokumentasi season lalu' } = landing ?? {};
     const { auth, registrationOpen } = usePage<SharedData>().props;
 
     // Foto dari admin (maksimal 4 teratas); bila belum ada, pakai 4 foto bawaan.
@@ -79,6 +92,7 @@ export default function Welcome({ exam, pillars, result, castOpen, documentation
                         )}
                     </div>
 
+                    {loading && <div role="status" aria-label="Memuat jadwal dan hasil" className="bg-muted mt-12 h-24 w-full max-w-2xl animate-pulse rounded-xl" />}
                     {exam && (
                         <dl className="border-border/70 bg-card/60 mt-12 grid w-full max-w-2xl grid-cols-1 gap-px overflow-hidden rounded-xl border backdrop-blur sm:grid-cols-3">
                             <div className="flex items-center gap-3 p-4 text-left">
@@ -187,7 +201,7 @@ export default function Welcome({ exam, pillars, result, castOpen, documentation
             <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
                 <h2 className="font-display text-2xl font-bold sm:text-3xl">{documentationTitle}</h2>
                 <div className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-4">
-                    {photos.map((photo) => (
+                    {loading ? Array.from({ length: 4 }, (_, i) => <div key={i} className="bg-muted aspect-[4/3] animate-pulse rounded-lg" />) : photos.map((photo) => (
                         <img key={photo.key} src={photo.src} alt={photo.alt} loading="lazy" className="aspect-[4/3] w-full rounded-lg border object-cover" />
                     ))}
                 </div>
