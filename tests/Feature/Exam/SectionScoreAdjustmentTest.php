@@ -139,6 +139,9 @@ class SectionScoreAdjustmentTest extends TestCase
 
     public function test_results_defer_and_paginate_without_changing_global_ranks(): void
     {
+        // A submitted/scored attempt has a numeric total; NULL ordering differs by database.
+        $this->attempt->update(['score_total' => 0]);
+
         for ($i = 0; $i < 54; $i++) {
             $participant = Participant::factory()->create(['building_id' => $this->participant->building_id]);
             ExamAttempt::create([
