@@ -165,12 +165,49 @@ class SectionScoreAdjustmentTest extends TestCase
                     ->has('results.rows', 5)
                     ->where('results.page', 2)
                     ->where('results.total', 55)
+                    ->where('results.cohort_total', 55)
                     ->where('results.rows.0.rank', 51)
                     ->where('results.rows.0.building_rank', 51)
                     ->where('results.rows.4.attempt_id', $this->attempt->id)
                     ->where('results.rows.4.section_scores.'.$this->exam->sections->first()->id, 0)
                 )
             );
+    }
+
+    public function test_progressive_batch_endpoints_return_paginated_json_chunks(): void
+    {
+        $this->attempt->update(['score_total' => 40]);
+
+        for ($i = 0; $i < 4; $i++) {
+            $p = Participant::factory()->create(['building_id' => $this->participant->building_id]);
+            ExamAttempt::create([
+                'exam_id' => $this->exam->id,
+                'participant_id' => $p->id,
+                'status' => AttemptStatus::Submitted,
+                'started_at' => now()->subMinutes(30),
+                'submitted_at' => now(),
+                'submit_reason' => SubmitReason::Manual,
+                'score_total' => 80 - ($i * 10),
+                'duration_seconds' => 1500,
+            ]);
+        }
+
+        // Batch endpoint for participants
+        $this->actingAs($this->admin)
+            ->getJson(route('admin.participants.index', ['batch_page' => 1, 'batch_size' => 25]))
+            ->assertOk()
+            ->assertJsonStructure(['rows', 'page', 'has_more', 'total'])
+            ->assertJsonPath('total', 5)
+            ->assertJsonPath('has_more', false);
+
+        // Batch endpoint for exam results
+        $this->actingAs($this->admin)
+            ->getJson(route('admin.exams.results', [$this->exam, 'batch_page' => 1, 'batch_size' => 25]))
+            ->assertOk()
+            ->assertJsonStructure(['rows', 'page', 'has_more', 'total'])
+            ->assertJsonPath('total', 5)
+            ->assertJsonPath('rows.0.rank', 1)
+            ->assertJsonPath('has_more', false);
     }
 
     public function test_admin_can_adjust_section_score_with_addition(): void

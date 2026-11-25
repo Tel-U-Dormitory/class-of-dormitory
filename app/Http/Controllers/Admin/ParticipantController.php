@@ -10,6 +10,7 @@ use App\Models\Building;
 use App\Models\ExamAttempt;
 use App\Models\Participant;
 use App\Services\Exam\ExamEngine;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -49,8 +50,12 @@ class ParticipantController extends Controller
             ->with('success', 'Akun peserta dibuat. Catat token-nya, hanya ditampilkan sekali.');
     }
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|JsonResponse
     {
+        if ($request->filled('batch_page')) {
+            return $this->batch($request);
+        }
+
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'building' => ['nullable', 'integer'],
@@ -68,26 +73,75 @@ class ParticipantController extends Controller
             ->latest()
             ->paginate(25)
             ->withQueryString()
-            ->through(fn (Participant $p) => [
-                'id' => $p->id,
-                'full_name' => $p->full_name,
-                'nim' => $p->nim,
-                'email' => $p->email,
-                'building' => $p->building->name,
-                'room_number' => $p->room_number,
-                'major' => $p->major,
-                'status' => $p->status->value,
-                'status_label' => $p->status->label(),
-                'photo_url' => $p->photo_path ? route('admin.participants.photo', $p) : null,
-                'created_at' => $p->created_at->toIso8601String(),
-            ]);
+            ->through(fn (Participant $p) => $this->transformParticipantRow($p));
+
+        $stats = Participant::query()
+            ->selectRaw('COUNT(*) as total_count, COALESCE(MAX(updated_at), "") as max_updated')
+            ->first();
+        $datasetSignature = ($stats->total_count ?? 0).':'.($stats->max_updated ?? '');
 
         return Inertia::render('admin/participants/index', [
             'participants' => $participants,
+            'datasetSignature' => $datasetSignature,
+            'datasetTotal' => (int) ($stats->total_count ?? 0),
             'filters' => $filters,
             'buildings' => Building::orderBy('sort_order')->get(['id', 'name']),
             'statuses' => collect(ParticipantStatus::cases())->map(fn ($s) => ['value' => $s->value, 'label' => $s->label()]),
         ]);
+    }
+
+    private function batch(Request $request): JsonResponse
+    {
+        $page = max(1, $request->integer('batch_page', 1));
+        $perPage = min(500, max(25, $request->integer('batch_size', 200)));
+
+        $query = Participant::query()
+            ->select([
+                'id',
+                'building_id',
+                'full_name',
+                'nim',
+                'email',
+                'room_number',
+                'major',
+                'status',
+                'photo_path',
+                'created_at',
+            ])
+            ->with('building:id,name')
+            ->latest();
+
+        $total = $query->count();
+        $rows = $query
+            ->forPage($page, $perPage)
+            ->get()
+            ->map(fn (Participant $p) => $this->transformParticipantRow($p))
+            ->values();
+
+        return response()->json([
+            'rows' => $rows,
+            'page' => $page,
+            'has_more' => ($page * $perPage) < $total,
+            'total' => $total,
+        ]);
+    }
+
+    private function transformParticipantRow(Participant $p): array
+    {
+        return [
+            'id' => $p->id,
+            'building_id' => $p->building_id,
+            'full_name' => $p->full_name,
+            'nim' => $p->nim,
+            'email' => $p->email,
+            'building' => $p->building->name,
+            'room_number' => $p->room_number,
+            'major' => $p->major,
+            'status' => $p->status->value,
+            'status_label' => $p->status->label(),
+            'photo_url' => $p->photo_path ? route('admin.participants.photo', $p) : null,
+            'created_at' => $p->created_at->toIso8601String(),
+        ];
     }
 
     public function show(Participant $participant): Response
