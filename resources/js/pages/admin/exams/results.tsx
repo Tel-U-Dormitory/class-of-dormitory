@@ -9,10 +9,11 @@ import { Input } from '@/components/ui/input';
 import { clearProgressiveCache, useProgressiveDataset } from '@/hooks/use-progressive-dataset';
 import AppLayout from '@/layouts/app-layout';
 import { formatDuration } from '@/lib/format';
+import { pillarMeta } from '@/lib/pillars';
 import { cn } from '@/lib/utils';
-import { type SharedData } from '@/types';
+import { type Pillar, type SharedData } from '@/types';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
-import { Crown, Download, Eye, EyeOff, FileText, LoaderCircle, Search, Sparkles } from 'lucide-react';
+import { Crown, Download, Eye, EyeOff, FileText, LoaderCircle, Search, Sparkles, Trophy } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface SectionAdjustmentItem {
@@ -22,6 +23,22 @@ interface SectionAdjustmentItem {
     adjustment_type: 'addition' | 'overwrite' | null;
     manual_score: number;
     adjustment_notes: string | null;
+}
+
+interface SectionRankItem {
+    rank: number;
+    building_rank: number;
+    score: number;
+    correct_count: number;
+    wrong_count: number;
+    duration_seconds: number;
+}
+
+interface ExamSectionMeta {
+    id: number;
+    pillar?: Pillar;
+    position?: number;
+    label: string;
 }
 
 interface Row {
@@ -36,6 +53,7 @@ interface Row {
     building: string;
     section_scores: Record<string, number | null>;
     section_adjustments?: Record<string, SectionAdjustmentItem>;
+    section_ranks?: Record<string, SectionRankItem>;
     score_total: number;
     correct_count: number;
     wrong_count: number;
@@ -48,10 +66,16 @@ interface Row {
 }
 
 interface Props {
-    exam: { id: number; title: string; results_published: boolean; cast_applied: boolean; sections: { id: number; label: string }[] };
+    exam: {
+        id: number;
+        title: string;
+        results_published: boolean;
+        cast_applied: boolean;
+        sections: ExamSectionMeta[];
+    };
     results: { rows: Row[]; page: number; last_page: number; total: number; cohort_total?: number; signature?: string };
     buildings: { id: number; name: string }[];
-    filters: { building: number | null };
+    filters: { building: number | null; section?: number | null };
     castRules: { global_keep: number; per_building: number };
     pillars: { value: string; label: string }[];
 }
@@ -97,11 +121,17 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
 
     const [search, setSearch] = useState('');
     const [building, setBuilding] = useState<string>(filters.building ? String(filters.building) : '');
+    const [activeSectionId, setActiveSectionId] = useState<number | null>(isAdmin && filters.section ? filters.section : null);
     const [page, setPage] = useState<number>(results.page ?? 1);
 
+    const activeSection = useMemo(
+        () => (isAdmin && activeSectionId !== null ? (exam.sections.find((s) => s.id === activeSectionId) ?? null) : null),
+        [isAdmin, activeSectionId, exam.sections],
+    );
+
     const cohortTotal = results.cohort_total ?? results.total;
-    const signature = results.signature ?? `${exam.id}:${cohortTotal}:${results.rows[0]?.score_total ?? 0}`;
-    const storageKey = `cod_exam_results_${exam.id}`;
+    const signature = `${isAdmin ? 'admin' : 'op'}:${results.signature ?? `${exam.id}:${cohortTotal}:${results.rows[0]?.score_total ?? 0}`}`;
+    const storageKey = `cod_exam_results_${exam.id}_${isAdmin ? 'admin' : 'op'}`;
 
     const { items: allRows, isSyncing } = useProgressiveDataset<Row>({
         storageKey,
@@ -118,10 +148,24 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
         [buildings],
     );
 
-    const sortedAllRows = useMemo(
-        () => [...allRows].sort((a, b) => a.rank - b.rank),
-        [allRows],
-    );
+    const sortedAllRows = useMemo(() => {
+        const list = [...allRows];
+        if (activeSection) {
+            return list.sort((a, b) => {
+                const rankA = a.section_ranks?.[activeSection.id]?.rank;
+                const rankB = b.section_ranks?.[activeSection.id]?.rank;
+                if (rankA !== undefined && rankB !== undefined && rankA !== rankB) {
+                    return rankA - rankB;
+                }
+                const scoreA = a.section_scores[activeSection.id] ?? 0;
+                const scoreB = b.section_scores[activeSection.id] ?? 0;
+                if (scoreA !== scoreB) return scoreB - scoreA;
+                if (a.score_total !== b.score_total) return b.score_total - a.score_total;
+                return a.duration_seconds - b.duration_seconds;
+            });
+        }
+        return list.sort((a, b) => a.rank - b.rank);
+    }, [allRows, activeSection]);
 
     const filteredRows = useMemo(() => {
         const q = search.trim().toLowerCase();
@@ -162,6 +206,10 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
         section: null,
     });
 
+    const exportUrl = activeSection
+        ? route('admin.exams.results.export', { exam: exam.id, section: activeSection.id })
+        : route('admin.exams.results.export', exam.id);
+
     return (
         <AppLayout
             breadcrumbs={[
@@ -173,11 +221,13 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
             <Head title={`Hasil · ${exam.title}`} />
             <div className="space-y-6 p-4 md:p-6">
                 <PageHeader
-                    title="Hasil & peringkat"
+                    title={activeSection ? `Hasil & peringkat · ${activeSection.label}` : 'Hasil & peringkat'}
                     description={
                         <span className="inline-flex flex-wrap items-center gap-2">
                             <span>
-                                {`Urutan: skor total tertinggi, lalu durasi tersingkat. Cast = Top ${castRules.global_keep} global + ${castRules.per_building} besar tiap gedung dari sisanya.${exam.cast_applied ? '' : ' Label bergaris putus-putus adalah pratinjau, belum ditetapkan.'}`}
+                                {activeSection
+                                    ? `Mode peringkat subtes ${activeSection.label} (Khusus Admin). Urutan: skor ${activeSection.label} tertinggi → durasi subtes tersingkat → skor total tertinggi → durasi total tersingkat.`
+                                    : `Urutan: skor total tertinggi, lalu durasi tersingkat. Cast = Top ${castRules.global_keep} global + ${castRules.per_building} besar tiap gedung dari sisanya.${exam.cast_applied ? '' : ' Label bergaris putus-putus adalah pratinjau, belum ditetapkan.'}`}
                             </span>
                             {isSyncing && (
                                 <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
@@ -223,13 +273,66 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                                 </Button>
                             )}
                             <Button asChild>
-                                <a href={route('admin.exams.results.export', exam.id)}>
-                                    <Download /> Ekspor CSV
+                                <a href={exportUrl}>
+                                    <Download /> {activeSection ? `Ekspor CSV (${activeSection.label})` : 'Ekspor CSV'}
                                 </a>
                             </Button>
                         </>
                     }
                 />
+
+                {isAdmin && (
+                    <div className="flex flex-wrap items-center gap-2 border-b pb-3" role="tablist" aria-label="Mode peringkat">
+                        <button
+                            type="button"
+                            role="tab"
+                            aria-selected={activeSection === null}
+                            onClick={() => {
+                                setActiveSectionId(null);
+                                setPage(1);
+                            }}
+                            className={cn(
+                                'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors',
+                                activeSection === null
+                                    ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                                    : 'border-border bg-card hover:bg-muted/60 text-muted-foreground hover:text-foreground',
+                            )}
+                        >
+                            <Trophy className="size-3.5" />
+                            <span>Semua Pilar (Skor Total)</span>
+                        </button>
+
+                        {exam.sections.map((s, idx) => {
+                            const isCurrent = activeSection?.id === s.id;
+                            const meta = s.pillar ? pillarMeta[s.pillar] : null;
+                            const Icon = meta?.icon;
+
+                            return (
+                                <button
+                                    key={s.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={isCurrent}
+                                    onClick={() => {
+                                        setActiveSectionId(s.id);
+                                        setPage(1);
+                                    }}
+                                    className={cn(
+                                        'flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition-colors',
+                                        isCurrent
+                                            ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                                            : 'border-border bg-card hover:bg-muted/60 text-muted-foreground hover:text-foreground',
+                                    )}
+                                >
+                                    {Icon && <Icon className={cn('size-3.5', isCurrent ? 'text-primary' : meta?.text)} />}
+                                    <span>
+                                        {s.position ?? idx + 1}. {s.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
                     <div className="relative">
@@ -264,17 +367,21 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                 <DataTable>
                     <thead>
                         <tr>
-                            <Th className="text-right">#</Th>
+                            <Th className="text-right">{activeSection ? `#${activeSection.label}` : '#'}</Th>
                             <Th className="text-right">#Gedung</Th>
+                            {activeSection && <Th className="text-right">#Total</Th>}
                             <Th>Peserta</Th>
-                            {exam.sections.map((s) => (
-                                <Th key={s.id} className="text-right">
-                                    {s.label}
-                                </Th>
-                            ))}
+                            {exam.sections.map((s) => {
+                                const isFocused = activeSection?.id === s.id;
+                                return (
+                                    <Th key={s.id} className={cn('text-right', isFocused && 'text-primary font-bold')}>
+                                        {s.label}
+                                    </Th>
+                                );
+                            })}
                             <Th className="text-right">Total</Th>
-                            <Th className="text-right">B / S</Th>
-                            <Th className="text-right">Durasi</Th>
+                            <Th className="text-right">{activeSection ? `B / S (${activeSection.label})` : 'B / S'}</Th>
+                            <Th className="text-right">{activeSection ? `Durasi (${activeSection.label})` : 'Durasi'}</Th>
                             <Th className="text-right">Tab</Th>
                             <Th>Cast</Th>
                             {isAdmin && <Th>Spesialis</Th>}
@@ -283,7 +390,7 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                     </thead>
                     <tbody>
                         {rows.length === 0 && (
-                            <EmptyRow colSpan={11 + exam.sections.length}>
+                            <EmptyRow colSpan={(activeSection ? 12 : 11) + exam.sections.length}>
                                 {allRows.length === 0
                                     ? 'Belum ada peserta yang menyelesaikan ujian.'
                                     : 'Tidak ada peserta yang cocok dengan pencarian atau filter.'}
@@ -292,18 +399,28 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                         {rows.map((r) => {
                             const castType = exam.cast_applied ? r.cast_type : r.cast_preview;
                             const cast = castType !== null;
+                            const secRank = activeSection ? r.section_ranks?.[activeSection.id] : null;
+                            const displayRank = secRank ? secRank.rank : r.rank;
+                            const displayBuildingRank = secRank ? secRank.building_rank : r.building_rank;
+                            const displayCorrect = secRank ? secRank.correct_count : r.correct_count;
+                            const displayWrong = secRank ? secRank.wrong_count : r.wrong_count;
+                            const displayDuration = secRank ? secRank.duration_seconds : r.duration_seconds;
+
                             return (
-                                <Tr key={r.attempt_id} className={cn(cast && 'bg-amber-500/5')}>
-                                    <Td className="text-right font-semibold tabular-nums">{r.rank}</Td>
+                                <Tr key={r.attempt_id} className={cn(cast && !activeSection && 'bg-amber-500/5')}>
+                                    <Td className="text-right font-semibold tabular-nums">{displayRank}</Td>
                                     <Td className="text-right tabular-nums">
                                         <span
                                             className={cn(
-                                                cast && 'rounded bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-700 dark:text-amber-300',
+                                                cast &&
+                                                    !activeSection &&
+                                                    'rounded bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-700 dark:text-amber-300',
                                             )}
                                         >
-                                            {r.building_rank}
+                                            {displayBuildingRank}
                                         </span>
                                     </Td>
+                                    {activeSection && <Td className="text-muted-foreground text-right tabular-nums">#{r.rank}</Td>}
                                     <Td className="min-w-52">
                                         <Link href={route('admin.participants.show', r.participant_id)} className="font-medium hover:underline">
                                             {r.full_name}
@@ -316,9 +433,16 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                                         const adj = r.section_adjustments?.[s.id];
                                         const isAdjusted = adj && adj.adjustment_type !== null;
                                         const scoreVal = r.section_scores[s.id] ?? 0;
+                                        const isFocused = activeSection?.id === s.id;
 
                                         return (
-                                            <Td key={s.id} className="text-right tabular-nums">
+                                            <Td
+                                                key={s.id}
+                                                className={cn(
+                                                    'text-right tabular-nums',
+                                                    isFocused && 'bg-primary/5 font-semibold',
+                                                )}
+                                            >
                                                 <div className="flex items-center justify-end gap-1">
                                                     {isAdmin ? (
                                                         <button
@@ -347,7 +471,10 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                                                             }
                                                         >
                                                             <span
-                                                                className={cn(isAdjusted && 'text-primary font-semibold underline decoration-dotted')}
+                                                                className={cn(
+                                                                    isFocused && 'text-primary text-base font-bold',
+                                                                    isAdjusted && 'text-primary font-semibold underline decoration-dotted',
+                                                                )}
                                                             >
                                                                 {scoreVal}
                                                             </span>
@@ -364,11 +491,13 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                                             </Td>
                                         );
                                     })}
-                                    <Td className="text-right text-base font-semibold tabular-nums">{r.score_total}</Td>
-                                    <Td className="text-muted-foreground text-right whitespace-nowrap tabular-nums">
-                                        {r.correct_count} / {r.wrong_count}
+                                    <Td className={cn('text-right tabular-nums', activeSection ? 'text-muted-foreground font-medium' : 'text-base font-semibold')}>
+                                        {r.score_total}
                                     </Td>
-                                    <Td className="text-muted-foreground text-right whitespace-nowrap">{formatDuration(r.duration_seconds)}</Td>
+                                    <Td className="text-muted-foreground text-right whitespace-nowrap tabular-nums">
+                                        {displayCorrect} / {displayWrong}
+                                    </Td>
+                                    <Td className="text-muted-foreground text-right whitespace-nowrap">{formatDuration(displayDuration)}</Td>
                                     <Td className={cn('text-right tabular-nums', r.tab_switch_count >= 3 && 'text-destructive font-semibold')}>
                                         {r.tab_switch_count}
                                     </Td>

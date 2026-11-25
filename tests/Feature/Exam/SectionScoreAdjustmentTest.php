@@ -345,4 +345,98 @@ class SectionScoreAdjustmentTest extends TestCase
             ]
         )->assertForbidden();
     }
+
+    public function test_subtest_ranking_tie_breakers_and_admin_only_visibility(): void
+    {
+        $firstSection = $this->exam->sections()->orderBy('position')->first();
+        $buildingId = $this->participant->building_id;
+
+        // Peserta 1 ($this->attempt): Skor subtes 20, durasi subtes 500s, skor total 40, durasi total 1500s
+        $this->attempt->update(['score_total' => 40, 'duration_seconds' => 1500]);
+        AttemptSection::where('exam_attempt_id', $this->attempt->id)
+            ->where('exam_section_id', $firstSection->id)
+            ->update([
+                'score' => 20,
+                'correct_count' => 5,
+                'wrong_count' => 0,
+                'started_at' => now()->subSeconds(1000),
+                'finished_at' => now()->subSeconds(500), // 500s
+            ]);
+
+        // Peserta 2: Skor subtes 20 (sama), durasi subtes 300s (lebih cepat -> harus Rank 1 di subtes ini), walau skor total lebih kecil (30)
+        $p2 = Participant::factory()->create(['building_id' => $buildingId, 'full_name' => 'Fast Subtest']);
+        $a2 = ExamAttempt::create([
+            'exam_id' => $this->exam->id,
+            'participant_id' => $p2->id,
+            'status' => AttemptStatus::Submitted,
+            'started_at' => now()->subMinutes(30),
+            'submitted_at' => now(),
+            'submit_reason' => SubmitReason::Manual,
+            'score_total' => 30,
+            'duration_seconds' => 1600,
+        ]);
+        AttemptSection::create([
+            'exam_attempt_id' => $a2->id,
+            'exam_section_id' => $firstSection->id,
+            'started_at' => now()->subSeconds(900),
+            'deadline_at' => now()->subSeconds(300),
+            'finished_at' => now()->subSeconds(600), // 300s
+            'score' => 20,
+            'correct_count' => 5,
+            'wrong_count' => 0,
+        ]);
+
+        // Peserta 3: Skor subtes 20 (sama), durasi subtes 500s (sama dgn P1), tapi skor total 60 (lebih tinggi dari P1 -> harus di atas P1)
+        $p3 = Participant::factory()->create(['building_id' => $buildingId, 'full_name' => 'High Total Tiebreak']);
+        $a3 = ExamAttempt::create([
+            'exam_id' => $this->exam->id,
+            'participant_id' => $p3->id,
+            'status' => AttemptStatus::Submitted,
+            'started_at' => now()->subMinutes(30),
+            'submitted_at' => now(),
+            'submit_reason' => SubmitReason::Manual,
+            'score_total' => 60,
+            'duration_seconds' => 1700,
+        ]);
+        AttemptSection::create([
+            'exam_attempt_id' => $a3->id,
+            'exam_section_id' => $firstSection->id,
+            'started_at' => now()->subSeconds(1000),
+            'deadline_at' => now()->subSeconds(200),
+            'finished_at' => now()->subSeconds(500), // 500s
+            'score' => 20,
+            'correct_count' => 5,
+            'wrong_count' => 0,
+        ]);
+
+        // Urutan subtes yang benar: a2 (rank 1: 20pt, 300s) -> a3 (rank 2: 20pt, 500s, total 60) -> this->attempt (rank 3: 20pt, 500s, total 40)
+        $this->actingAs($this->admin)
+            ->get(route('admin.exams.results', [$this->exam, 'section' => $firstSection->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.section', $firstSection->id)
+                ->loadDeferredProps(fn ($reload) => $reload
+                    ->has('results.rows', 3)
+                    ->where('results.rows.0.attempt_id', $a2->id)
+                    ->where("results.rows.0.section_ranks.{$firstSection->id}.rank", 1)
+                    ->where("results.rows.0.section_ranks.{$firstSection->id}.duration_seconds", 300)
+                    ->where('results.rows.1.attempt_id', $a3->id)
+                    ->where("results.rows.1.section_ranks.{$firstSection->id}.rank", 2)
+                    ->where('results.rows.2.attempt_id', $this->attempt->id)
+                    ->where("results.rows.2.section_ranks.{$firstSection->id}.rank", 3)
+                )
+            );
+
+        // Operator TIDAK boleh melihat data section_ranks maupun memfilter berdasarkan section
+        $this->actingAs($this->operator)
+            ->get(route('admin.exams.results', [$this->exam, 'section' => $firstSection->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.section', null)
+                ->loadDeferredProps(fn ($reload) => $reload
+                    ->has('results.rows', 3)
+                    ->missing('results.rows.0.section_ranks')
+                )
+            );
+    }
 }
