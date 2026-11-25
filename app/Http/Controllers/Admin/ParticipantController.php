@@ -76,7 +76,7 @@ class ParticipantController extends Controller
             ->through(fn (Participant $p) => $this->transformParticipantRow($p));
 
         $stats = Participant::query()
-            ->selectRaw('COUNT(*) as total_count, COALESCE(MAX(updated_at), "") as max_updated')
+            ->selectRaw('COUNT(*) as total_count, MAX(updated_at) as max_updated')
             ->first();
         $datasetSignature = ($stats->total_count ?? 0).':'.($stats->max_updated ?? '');
 
