@@ -11,6 +11,7 @@ use App\Models\ExamAttempt;
 use App\Models\ExamSection;
 use App\Services\Exam\CastSelectionService;
 use App\Services\Exam\ScoringService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -23,8 +24,12 @@ class ResultController extends Controller
 {
     public function __construct(private CastSelectionService $cast) {}
 
-    public function index(Request $request, Exam $exam): Response
+    public function index(Request $request, Exam $exam): Response|JsonResponse
     {
+        if ($request->filled('batch_page')) {
+            return $this->batchResults($request, $exam);
+        }
+
         $exam->load('sections');
         $building = $request->integer('building') ?: null;
 
@@ -58,6 +63,9 @@ class ResultController extends Controller
 
             return [$attempt->id => ['rank' => $index + 1, 'building_rank' => $buildingCounters[$id]]];
         });
+
+        $signature = $this->resultsSignature($exam, $ranked);
+
         $filtered = $building ? $ranked->filter(fn ($a) => $a->participant->building_id === $building)->values() : $ranked;
         $lastPage = max(1, (int) ceil($filtered->count() / 50));
         $page = min(max(1, $request->integer('page', 1)), $lastPage);
@@ -67,7 +75,58 @@ class ResultController extends Controller
             'cast_preview' => $preview->get($row['attempt_id']),
         ]);
 
-        return ['rows' => $rows, 'page' => $page, 'last_page' => $lastPage, 'total' => $filtered->count()];
+        return [
+            'rows' => $rows,
+            'page' => $page,
+            'last_page' => $lastPage,
+            'total' => $filtered->count(),
+            'cohort_total' => $ranked->count(),
+            'signature' => $signature,
+        ];
+    }
+
+    private function batchResults(Request $request, Exam $exam): JsonResponse
+    {
+        $page = max(1, $request->integer('batch_page', 1));
+        $perPage = min(500, max(25, $request->integer('batch_size', 200)));
+
+        $ranked = $this->cast->ranked($exam);
+        ['global' => $global, 'buildings' => $buildings] = $this->cast->select($exam, $ranked);
+        $preview = $global->mapWithKeys(fn ($a) => [$a->id => 'global'])
+            ->union($buildings->flatten(1)->mapWithKeys(fn ($a) => [$a->id => 'building']));
+        $buildingCounters = [];
+        $ranks = $ranked->values()->mapWithKeys(function ($attempt, $index) use (&$buildingCounters) {
+            $id = $attempt->participant->building_id;
+            $buildingCounters[$id] = ($buildingCounters[$id] ?? 0) + 1;
+
+            return [$attempt->id => ['rank' => $index + 1, 'building_rank' => $buildingCounters[$id]]];
+        });
+
+        $total = $ranked->count();
+        $rows = $this->ranked($exam, $ranked->forPage($page, $perPage))->map(fn ($row) => [
+            ...$row,
+            ...$ranks[$row['attempt_id']],
+            'cast_preview' => $preview->get($row['attempt_id']),
+        ])->values();
+
+        return response()->json([
+            'rows' => $rows,
+            'page' => $page,
+            'has_more' => ($page * $perPage) < $total,
+            'total' => $total,
+        ]);
+    }
+
+    private function resultsSignature(Exam $exam, Collection $ranked): string
+    {
+        $count = $ranked->count();
+        $scoreSum = (int) $ranked->sum('score_total');
+        $maxAttemptUpdated = $ranked->max(fn (ExamAttempt $a) => $a->updated_at?->getTimestamp() ?? 0) ?? 0;
+        $maxSectionAdjusted = AttemptSection::query()
+            ->whereIn('exam_attempt_id', $ranked->pluck('id'))
+            ->max('updated_at') ?? '';
+
+        return "{$exam->id}:{$count}:{$scoreSum}:{$maxAttemptUpdated}:{$maxSectionAdjusted}";
     }
 
     public function export(Exam $exam): StreamedResponse

@@ -5,13 +5,15 @@ import { NativeSelect } from '@/components/native-select';
 import { PageHeader } from '@/components/page-header';
 import { PageSkeleton } from '@/components/page-skeleton';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { clearProgressiveCache, useProgressiveDataset } from '@/hooks/use-progressive-dataset';
 import AppLayout from '@/layouts/app-layout';
 import { formatDuration } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
-import { Crown, Download, Eye, EyeOff, FileText, Sparkles } from 'lucide-react';
-import { useState } from 'react';
+import { Crown, Download, Eye, EyeOff, FileText, LoaderCircle, Search, Sparkles } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 interface SectionAdjustmentItem {
     attempt_section_id: number;
@@ -30,6 +32,7 @@ interface Row {
     full_name: string;
     nim: string;
     major: string;
+    building_id?: number;
     building: string;
     section_scores: Record<string, number | null>;
     section_adjustments?: Record<string, SectionAdjustmentItem>;
@@ -46,12 +49,14 @@ interface Row {
 
 interface Props {
     exam: { id: number; title: string; results_published: boolean; cast_applied: boolean; sections: { id: number; label: string }[] };
-    results: { rows: Row[]; page: number; last_page: number; total: number };
+    results: { rows: Row[]; page: number; last_page: number; total: number; cohort_total?: number; signature?: string };
     buildings: { id: number; name: string }[];
     filters: { building: number | null };
     castRules: { global_keep: number; per_building: number };
     pillars: { value: string; label: string }[];
 }
+
+const PER_PAGE = 50;
 
 function CastBadge({ type, preview }: { type: 'global' | 'building' | null; preview?: boolean }) {
     if (!type) return null;
@@ -86,10 +91,64 @@ export default function ResultsPage(props: Props) {
 }
 
 function Results({ exam, results, buildings, filters, castRules, pillars }: Props) {
-    const { rows, page, last_page, total } = results;
     const { confirm } = useConfirmation();
     const { auth } = usePage<SharedData>().props;
     const isAdmin = auth.user?.role === 'admin';
+
+    const [search, setSearch] = useState('');
+    const [building, setBuilding] = useState<string>(filters.building ? String(filters.building) : '');
+    const [page, setPage] = useState<number>(results.page ?? 1);
+
+    const cohortTotal = results.cohort_total ?? results.total;
+    const signature = results.signature ?? `${exam.id}:${cohortTotal}:${results.rows[0]?.score_total ?? 0}`;
+    const storageKey = `cod_exam_results_${exam.id}`;
+
+    const { items: allRows, isSyncing } = useProgressiveDataset<Row>({
+        storageKey,
+        signature,
+        initialItems: results.rows,
+        total: cohortTotal,
+        fetchUrl: route('admin.exams.results', exam.id),
+        batchSize: 200,
+        getKey: (item) => item.attempt_id,
+    });
+
+    const buildingNameById = useMemo(
+        () => new Map(buildings.map((b) => [String(b.id), b.name])),
+        [buildings],
+    );
+
+    const sortedAllRows = useMemo(
+        () => [...allRows].sort((a, b) => a.rank - b.rank),
+        [allRows],
+    );
+
+    const filteredRows = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        const targetBuildingName = building ? buildingNameById.get(building) : null;
+
+        return sortedAllRows.filter((r) => {
+            if (building) {
+                const matchId = r.building_id !== undefined && String(r.building_id) === building;
+                const matchName = targetBuildingName ? r.building === targetBuildingName : false;
+                if (!matchId && !matchName) return false;
+            }
+            if (q) {
+                const inName = r.full_name.toLowerCase().includes(q);
+                const inNim = r.nim.toLowerCase().includes(q);
+                const inMajor = r.major.toLowerCase().includes(q);
+                if (!inName && !inNim && !inMajor) return false;
+            }
+            return true;
+        });
+    }, [sortedAllRows, search, building, buildingNameById]);
+
+    const lastPage = Math.max(1, Math.ceil(filteredRows.length / PER_PAGE));
+    const safePage = Math.min(Math.max(1, page), lastPage);
+    const rows = useMemo(
+        () => filteredRows.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE),
+        [filteredRows, safePage],
+    );
 
     const [adjustDialog, setAdjustDialog] = useState<{
         open: boolean;
@@ -115,7 +174,18 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
             <div className="space-y-6 p-4 md:p-6">
                 <PageHeader
                     title="Hasil & peringkat"
-                    description={`Urutan: skor total tertinggi, lalu durasi tersingkat. Cast = Top ${castRules.global_keep} global + ${castRules.per_building} besar tiap gedung dari sisanya.${exam.cast_applied ? '' : ' Label bergaris putus-putus adalah pratinjau, belum ditetapkan.'}`}
+                    description={
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                            <span>
+                                {`Urutan: skor total tertinggi, lalu durasi tersingkat. Cast = Top ${castRules.global_keep} global + ${castRules.per_building} besar tiap gedung dari sisanya.${exam.cast_applied ? '' : ' Label bergaris putus-putus adalah pratinjau, belum ditetapkan.'}`}
+                            </span>
+                            {isSyncing && (
+                                <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+                                    <LoaderCircle className="size-3 animate-spin" /> Menyinkronkan data ({allRows.length}/{cohortTotal})
+                                </span>
+                            )}
+                        </span>
+                    }
                     actions={
                         <>
                             <Button asChild variant="outline">
@@ -129,7 +199,15 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                                     onClick={async () =>
                                         (await confirm(
                                             `Tetapkan cast sesuai aturan (Top ${castRules.global_keep} global + ${castRules.per_building} per gedung)? Status peserta terpilih menjadi "Cast".`,
-                                        )) && router.post(route('admin.exams.cast.apply', exam.id), {}, { preserveScroll: true })
+                                        )) &&
+                                        router.post(
+                                            route('admin.exams.cast.apply', exam.id),
+                                            {},
+                                            {
+                                                preserveScroll: true,
+                                                onSuccess: () => clearProgressiveCache(storageKey),
+                                            },
+                                        )
                                     }
                                 >
                                     <Crown /> {exam.cast_applied ? 'Tetapkan ulang cast' : 'Tetapkan cast'}
@@ -153,15 +231,26 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                     }
                 />
 
-                <div className="max-w-xs">
+                <div className="grid gap-3 sm:grid-cols-[1fr_14rem]">
+                    <div className="relative">
+                        <Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                        <Input
+                            className="pl-9"
+                            placeholder="Cari nama, NIM, prodi"
+                            value={search}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(1);
+                            }}
+                        />
+                    </div>
                     <NativeSelect
                         aria-label="Filter gedung"
-                        value={filters.building ?? ''}
-                        onChange={(e) =>
-                            router.get(route('admin.exams.results', exam.id), e.target.value ? { building: e.target.value } : {}, {
-                                preserveState: true,
-                            })
-                        }
+                        value={building}
+                        onChange={(e) => {
+                            setBuilding(e.target.value);
+                            setPage(1);
+                        }}
                     >
                         <option value="">Semua gedung</option>
                         {buildings.map((b) => (
@@ -193,7 +282,13 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.length === 0 && <EmptyRow colSpan={11 + exam.sections.length}>Belum ada peserta yang menyelesaikan ujian.</EmptyRow>}
+                        {rows.length === 0 && (
+                            <EmptyRow colSpan={11 + exam.sections.length}>
+                                {allRows.length === 0
+                                    ? 'Belum ada peserta yang menyelesaikan ujian.'
+                                    : 'Tidak ada peserta yang cocok dengan pencarian atau filter.'}
+                            </EmptyRow>
+                        )}
                         {rows.map((r) => {
                             const castType = exam.cast_applied ? r.cast_type : r.cast_preview;
                             const cast = castType !== null;
@@ -289,7 +384,10 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                                                     router.patch(
                                                         route('admin.attempts.specialist', [exam.id, r.attempt_id]),
                                                         { pillar: e.target.value || null },
-                                                        { preserveScroll: true },
+                                                        {
+                                                            preserveScroll: true,
+                                                            onSuccess: () => clearProgressiveCache(storageKey),
+                                                        },
                                                     )
                                                 }
                                                 className="border-input bg-background h-8 rounded-md border px-2 text-xs"
@@ -321,24 +419,20 @@ function Results({ exam, results, buildings, filters, castRules, pillars }: Prop
                 </DataTable>
                 <div className="flex items-center justify-between gap-3 text-sm">
                     <span>
-                        {total} peserta · Halaman {page} dari {last_page}
+                        {filteredRows.length} peserta · Halaman {safePage} dari {lastPage}
                     </span>
                     <div className="flex gap-2">
                         <Button
                             variant="outline"
-                            disabled={page <= 1}
-                            onClick={() =>
-                                router.get(route('admin.exams.results', exam.id), { building: filters.building || undefined, page: page - 1 })
-                            }
+                            disabled={safePage <= 1}
+                            onClick={() => setPage((curr) => Math.max(1, curr - 1))}
                         >
                             Sebelumnya
                         </Button>
                         <Button
                             variant="outline"
-                            disabled={page >= last_page}
-                            onClick={() =>
-                                router.get(route('admin.exams.results', exam.id), { building: filters.building || undefined, page: page + 1 })
-                            }
+                            disabled={safePage >= lastPage}
+                            onClick={() => setPage((curr) => Math.min(lastPage, curr + 1))}
                         >
                             Berikutnya
                         </Button>
